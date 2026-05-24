@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>متتبع سير الفواتير</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Cairo', 'sans-serif'] },
+          colors: {
+            maroon: { DEFAULT:'#902c34', hover:'#7a2229', light:'#fdf2f3' }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    [x-cloak]{ display:none!important }
+    *{ font-family:'Cairo',sans-serif }
+    body{ background:#f3f4f8 }
+
+    /* ── Sidebar nav items ── */
+    .nav-item{
+      display:flex; align-items:center; gap:0.75rem;
+      width:100%; padding:0.625rem 1rem;
+      border-radius:0.75rem; font-size:0.875rem; font-weight:500;
+      transition:all .2s; color:#4b5563; text-align:right;
+      cursor:pointer; border:none; background:transparent;
+    }
+    .nav-item:hover{ background:#f9fafb; color:#111827 }
+    .nav-item.active{
+      background:linear-gradient(135deg,#902c34,#7a2229);
+      color:#fff;
+      box-shadow:0 4px 14px rgba(144,44,52,.32);
+    }
+    .nav-item.active svg{ color:#fff }
+
+    /* ── Stat card top borders ── */
+    .stat-card{ border-top:3px solid transparent }
+    .sc-total    { border-color:#902c34 }
+    .sc-processed{ border-color:#22c55e }
+    .sc-postponed{ border-color:#f59e0b }
+    .sc-pending  { border-color:#64748b }
+
+    /* ── Status badges ── */
+    .badge-processed{ background:#dcfce7;color:#16a34a }
+    .badge-pending  { background:#f1f5f9;color:#475569 }
+    .badge-postponed{ background:#fef9c3;color:#ca8a04 }
+
+    /* ── Clerk badge ── */
+    .clerk-badge{
+      display:inline-flex; align-items:center; gap:0.3rem;
+      background:#fdf2f3; color:#902c34; font-size:0.7rem;
+      font-weight:700; padding:0.2rem 0.55rem; border-radius:0.5rem;
+      border:1px solid #f5c6c9; white-space:nowrap;
+    }
+
+    /* ── Drag/Drop ── */
+    .drop-zone.drag-over{ border-color:#902c34;background:#fdf2f3 }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar{ width:5px;height:5px }
+    ::-webkit-scrollbar-track{ background:transparent }
+    ::-webkit-scrollbar-thumb{ background:#d1d5db;border-radius:99px }
+
+    /* ── Animations ── */
+    @keyframes fadeIn{ from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    .fade-in{ animation:fadeIn .22s ease-out }
+    @keyframes slideUp{ from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    .slide-up{ animation:slideUp .3s ease-out }
+
+    /* ── Modal backdrop ── */
+    .modal-bg{ background:rgba(0,0,0,.52);backdrop-filter:blur(4px) }
+
+    /* ── Table row hover ── */
+    tbody tr:hover{ background:#fdf8f8 }
+
+    /* ── Form field ── */
+    .field{
+      width:100%; border:1px solid #e5e7eb; border-radius:0.75rem;
+      padding:0.75rem 1rem; font-size:0.875rem; color:#1f2937;
+      background:#fff; transition:all .2s;
+    }
+    .field::placeholder{ color:#d1d5db }
+    .field:focus{ outline:none; box-shadow:0 0 0 2px rgba(144,44,52,.35); border-color:transparent }
+
+    /* ── Login page ── */
+    .login-input-wrap{ position:relative }
+    .login-input{
+      width:100%; border:1.5px solid #e5e7eb; border-radius:0.75rem;
+      padding:0.8rem 1rem 0.8rem 2.8rem; font-size:0.9rem;
+      font-family:'Cairo',sans-serif; color:#1f2937; background:#fafafa;
+      transition:all .2s;
+    }
+    .login-input:focus{ outline:none; border-color:#902c34; background:#fff; box-shadow:0 0 0 3px rgba(144,44,52,.12) }
+    .login-icon{
+      position:absolute; left:0.85rem; top:50%; transform:translateY(-50%);
+      color:#c4adb0; pointer-events:none;
+    }
+    .login-btn{
+      width:100%; background:#902c34; color:#fff;
+      border:none; border-radius:0.75rem; padding:0.85rem 1rem;
+      font-family:'Cairo',sans-serif; font-size:1rem; font-weight:700;
+      cursor:pointer; transition:background .2s, box-shadow .2s;
+      box-shadow:0 4px 14px rgba(144,44,52,.35);
+      display:flex; align-items:center; justify-content:center; gap:0.4rem;
+    }
+    .login-btn:hover{ background:#7a2229; box-shadow:0 6px 18px rgba(144,44,52,.45) }
+    .login-btn:disabled{ opacity:.6; cursor:not-allowed }
+  </style>
+</head>
+
+<!--
+  CONSTANTS (hardcoded clerk)
+  CLERK_NAME is referenced globally below — one place to change it.
+-->
+<script>
+  const CLERK_NAME = 'دانيال';
+  // Hardcoded credentials (single-user, frontend-only guard)
+  const VALID_USER = 'admin';
+  const VALID_PASS = 'daniel2025';
+</script>
+
+<body x-data="app()" x-init="init()">
+
+<!-- ══════════════════════════════════════════════════
+     PAGE: LOGIN
+══════════════════════════════════════════════════ -->
+<div x-show="page==='login'" x-cloak
+  class="min-h-screen flex items-center justify-center bg-[#f3f4f8] p-4">
+  <div class="slide-up bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden">
+
+    <!-- Logo area -->
+    <div class="flex flex-col items-center pt-10 pb-6 px-8 border-b border-gray-100">
+      <img src="/logoen.png" alt="شعار الشركة"
+        class="h-20 w-auto object-contain mb-5"
+        onerror="this.style.display='none'" />
+      <h1 class="text-2xl font-extrabold text-gray-800 tracking-tight">تسجيل الدخول</h1>
+      <p class="text-sm text-gray-400 mt-1 font-medium">مرحباً بك مجدداً في النظام</p>
+    </div>
+
+    <!-- Form -->
+    <form @submit.prevent="doLogin()" class="px-8 py-7 space-y-4">
+
+      <!-- Username -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">اسم المستخدم</label>
+        <div class="login-input-wrap">
+          <!-- user icon -->
+          <svg class="login-icon w-4.5 h-4.5" style="width:18px;height:18px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+          <input x-model="loginForm.username" type="text" placeholder="اسم المستخدم"
+            class="login-input" autocomplete="username" required />
+        </div>
+      </div>
+
+      <!-- Password -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-600 mb-1.5">كلمة المرور</label>
+        <div class="login-input-wrap">
+          <!-- lock icon -->
+          <svg class="login-icon" style="width:18px;height:18px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+          <input x-model="loginForm.password" type="password" placeholder="••••••••"
+            class="login-input" autocomplete="current-password" required />
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div x-show="loginForm.error"
+        class="flex items-center gap-2 bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-xl">
+        <svg style="width:16px;height:16px;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span x-text="loginForm.error"></span>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit" class="login-btn" :disabled="loginForm.loading">
+        <svg x-show="loginForm.loading" class="animate-spin" style="width:16px;height:16px" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        <span x-text="loginForm.loading ? 'جاري التحقق...' : 'دخول للنظام ➔'"></span>
+      </button>
+    </form>
+
+    <!-- Footer note -->
+    <p class="text-center text-xs text-gray-300 pb-6">متتبع سير الفواتير الداخلي</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     MAIN APP (shown when logged in)
+══════════════════════════════════════════════════ -->
+<div x-show="page!=='login'" x-cloak class="flex min-h-screen">
+
+  <!-- ─── SIDEBAR ──────────────────────────────────────── -->
+  <aside class="w-64 bg-white border-l border-gray-100 shadow-sm flex flex-col fixed inset-y-0 right-0 z-20">
+
+    <!-- Logo -->
+    <div class="px-5 py-5 border-b border-gray-100 flex flex-col items-center gap-2">
+      <img src="/logoen.png" alt="شعار الشركة"
+        class="h-14 w-auto object-contain"
+        onerror="this.onerror=null;this.style.display='none';document.getElementById('sidebar-fallback').style.display='flex'" />
+      <!-- Fallback icon (hidden by default, shown if image 404s) -->
+      <div id="sidebar-fallback" style="display:none"
+        class="w-11 h-11 rounded-xl bg-gradient-to-br from-[#902c34] to-[#7a2229] flex items-center justify-center shadow">
+        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- System status -->
+    <div class="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      <span class="text-xs text-gray-400">النظام يعمل</span>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <button @click="page='dashboard'" :class="page==='dashboard'?'active':''" class="nav-item">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+        لوحة التحكم
+      </button>
+      <button @click="page='form'; resetForm()" :class="page==='form'?'active':''" class="nav-item">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        إضافة فاتورة
+      </button>
+    </nav>
+
+    <!-- Clerk info -->
+    <div class="px-5 py-3 border-t border-gray-100 flex items-center gap-2">
+      <div class="w-8 h-8 rounded-full bg-[#fdf2f3] border border-[#f5c6c9] flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-[#902c34]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+      </div>
+      <div class="min-w-0">
+        <p class="text-xs font-bold text-gray-700 truncate" x-text="clerk"></p>
+        <p class="text-xs text-gray-400">موظف المعالجة</p>
+      </div>
+    </div>
+
+    <!-- Logout -->
+    <div class="px-3 pb-4">
+      <button @click="logout()"
+        class="nav-item text-red-400 hover:!bg-red-50 hover:!text-red-600 w-full">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+        </svg>
+        تسجيل الخروج
+      </button>
+    </div>
+
+    <div class="px-5 pb-3 text-center">
+      <p class="text-xs text-gray-200">© 2025 متتبع سير الفواتير</p>
+    </div>
+  </aside>
+
+  <!-- ─── MAIN CONTENT ──────────────────────────────────── -->
+  <main class="flex-1 mr-64 min-h-screen flex flex-col">
+
+    <!-- Top bar -->
+    <header class="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
+      <div class="px-8 py-4 flex items-center justify-between">
+        <div>
+          <h1 class="text-lg font-bold text-gray-800"
+              x-text="page==='dashboard' ? 'لوحة التحكم' : 'إضافة فاتورة جديدة'"></h1>
+          <p class="text-xs text-gray-400 mt-0.5"
+             x-text="page==='dashboard' ? 'نظرة عامة على جميع الفواتير' : 'أدخل بيانات الفاتورة وارفع صورتها'"></p>
+        </div>
+        <div class="flex items-center gap-3">
+          <!-- Clerk chip in header -->
+          <span class="clerk-badge">
+            <svg style="width:11px;height:11px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+            الموظف: <span x-text="clerk"></span>
+          </span>
+          <span class="text-xs text-gray-400 bg-gray-50 px-3 py-2 rounded-lg flex items-center gap-2">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <span x-text="today"></span>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ───────────────────────────────────────────────
+         PAGE: DASHBOARD
+    ─────────────────────────────────────────────── -->
+    <div x-show="page==='dashboard'" x-cloak class="fade-in p-8 flex-1">
+
+      <!-- Stat cards -->
+      <div class="grid grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+
+        <div class="stat-card sc-total bg-white rounded-2xl p-5 shadow-sm">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs text-gray-400 font-medium mb-1">إجمالي الفواتير</p>
+              <p x-text="stats.total" class="text-3xl font-bold text-gray-800"></p>
+            </div>
+            <div class="w-10 h-10 bg-[#fdf2f3] rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-[#902c34]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 mt-3">المجموع: <span class="font-semibold text-gray-600" x-text="iqd(stats.totalAmount)"></span></p>
+        </div>
+
+        <div class="stat-card sc-processed bg-white rounded-2xl p-5 shadow-sm">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs text-gray-400 font-medium mb-1">تم تجهيز الفاتورة</p>
+              <p x-text="stats.processed" class="text-3xl font-bold text-gray-800"></p>
+            </div>
+            <div class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 mt-3">نسبة الإنجاز:
+            <span class="font-semibold text-emerald-600"
+                  x-text="stats.total ? Math.round(stats.processed/stats.total*100)+'%' : '0%'"></span>
+          </p>
+        </div>
+
+        <div class="stat-card sc-postponed bg-white rounded-2xl p-5 shadow-sm">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs text-gray-400 font-medium mb-1">تم التأجيل</p>
+              <p x-text="stats.postponed" class="text-3xl font-bold text-gray-800"></p>
+            </div>
+            <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 mt-3">تحتاج متابعة</p>
+        </div>
+
+        <div class="stat-card sc-pending bg-white rounded-2xl p-5 shadow-sm">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs text-gray-400 font-medium mb-1">لم تجهز الفاتورة</p>
+              <p x-text="stats.pending" class="text-3xl font-bold text-gray-800"></p>
+            </div>
+            <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
+              <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 mt-3">قيد المعالجة</p>
+        </div>
+      </div>
+
+      <!-- Table card -->
+      <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 class="font-semibold text-gray-800">الفواتير المسجلة</h2>
+            <p class="text-xs text-gray-400 mt-0.5">اضغط على أيقونة العرض لمشاهدة صورة الفاتورة</p>
+          </div>
+          <button @click="loadData()"
+            class="flex items-center gap-2 text-xs text-[#902c34] hover:text-[#7a2229] bg-[#fdf2f3] hover:bg-[#fae5e6] px-3 py-2 rounded-lg transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            تحديث
+          </button>
+        </div>
+
+        <!-- Empty state -->
+        <div x-show="invoices.length === 0" class="py-20 text-center">
+          <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+          </div>
+          <p class="text-gray-400 font-semibold">لا توجد فواتير بعد</p>
+          <p class="text-gray-300 text-sm mt-1">ابدأ بإضافة أول فاتورة</p>
+          <button @click="page='form'; resetForm()"
+            class="mt-4 inline-flex items-center gap-2 bg-[#902c34] hover:bg-[#7a2229] text-white text-sm px-5 py-2.5 rounded-xl transition-colors shadow-sm">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+            إضافة فاتورة
+          </button>
+        </div>
+
+        <!-- Table -->
+        <div x-show="invoices.length > 0" class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-gray-50 text-right">
+                <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase">#</th>
+                <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase">رقم الفاتورة</th>
+                <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase">المبلغ (د.ع)</th>
+                <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase">الحالة</th>
+                <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase">الموظف</th>
+                <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase">السبب</th>
+                <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase">التاريخ</th>
+                <th class="px-5 py-3 text-xs font-semibold text-gray-400 uppercase text-center">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-50">
+              <template x-for="inv in invoices" :key="inv.id">
+                <tr class="transition-colors">
+                  <td class="px-5 py-4 text-gray-400 font-mono text-xs" x-text="inv.id"></td>
+                  <td class="px-5 py-4">
+                    <span class="font-semibold text-gray-800" x-text="inv.invoice_number"></span>
+                  </td>
+                  <td class="px-5 py-4 font-medium text-gray-700" x-text="iqd(inv.amount)"></td>
+                  <td class="px-5 py-4">
+                    <span :class="badgeClass(inv.status)"
+                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold">
+                      <span :class="dotClass(inv.status)" class="w-1.5 h-1.5 rounded-full"></span>
+                      <span x-text="statusAr(inv.status)"></span>
+                    </span>
+                  </td>
+                  <!-- ── Clerk badge ── -->
+                  <td class="px-5 py-4">
+                    <span class="clerk-badge">
+                      <svg style="width:10px;height:10px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                      </svg>
+                      <span x-text="clerk"></span>
+                    </span>
+                  </td>
+                  <td class="px-5 py-4 text-gray-400 text-xs max-w-[160px] truncate" x-text="inv.reason || '—'"></td>
+                  <td class="px-5 py-4 text-gray-400 text-xs whitespace-nowrap" x-text="fmtDate(inv.created_at)"></td>
+
+                  <!-- Actions -->
+                  <td class="px-5 py-4">
+                    <div class="flex items-center justify-center gap-1">
+
+                      <!-- View -->
+                      <button x-show="inv.image_path" @click="openView(inv)" title="عرض"
+                        class="p-2 rounded-lg text-[#902c34] hover:text-[#7a2229] hover:bg-[#fdf2f3] transition-colors">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                      </button>
+                      <span x-show="!inv.image_path" class="p-2 text-gray-200 cursor-default" title="لا توجد صورة">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+                        </svg>
+                      </span>
+
+                      <!-- Edit -->
+                      <button @click="openEdit(inv)" title="تعديل"
+                        class="p-2 rounded-lg text-amber-400 hover:text-amber-600 hover:bg-amber-50 transition-colors">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                      </button>
+
+                      <!-- Delete -->
+                      <button @click="confirmDelete(inv)" title="حذف"
+                        class="p-2 rounded-lg text-red-300 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <div x-show="invoices.length > 0" class="px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
+          <p class="text-xs text-gray-400">
+            إجمالي السجلات: <span x-text="invoices.length" class="font-semibold text-gray-600"></span>
+          </p>
+          <span class="clerk-badge">الموظف: <span x-text="clerk"></span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────────────────────────────────────────────
+         PAGE: CREATE INVOICE FORM
+    ─────────────────────────────────────────────── -->
+    <div x-show="page==='form'" x-cloak class="fade-in p-8 flex justify-center flex-1">
+      <div class="w-full max-w-xl">
+        <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+
+          <!-- Card header -->
+          <div class="px-8 py-5" style="background:linear-gradient(135deg,#902c34,#7a2229)">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+              </div>
+              <div>
+                <h2 class="text-white font-bold">فاتورة جديدة</h2>
+                <div class="flex items-center gap-1 mt-0.5">
+                  <p class="text-red-200 text-xs">بواسطة الموظف:</p>
+                  <span class="text-white text-xs font-bold" x-text="clerk"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form -->
+          <form @submit.prevent="submitForm()" class="px-8 py-7 space-y-6">
+
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">رقم الفاتورة <span class="text-red-400">*</span></label>
+              <input x-model="form.invoice_number" type="text" placeholder="مثال: INV-2025-001" class="field" required />
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">مبلغ الفاتورة (دينار عراقي) <span class="text-red-400">*</span></label>
+              <div class="relative">
+                <input x-model="form.amount" type="number" step="1" min="0" placeholder="0" class="field pl-14" required />
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold pointer-events-none">د.ع</span>
+              </div>
+            </div>
+
+            <!-- Drop zone -->
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">صورة الفاتورة</label>
+              <div class="drop-zone border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#902c34] hover:bg-[#fdf2f3]/30 transition-all"
+                @dragover.prevent="$el.classList.add('drag-over')"
+                @dragleave.prevent="$el.classList.remove('drag-over')"
+                @drop.prevent="$el.classList.remove('drag-over'); handleDrop($event)"
+                @click="$refs.fileInput.click()">
+                <template x-if="form.imagePreview">
+                  <img :src="form.imagePreview" class="mx-auto max-h-36 rounded-xl object-contain shadow-sm border border-gray-100 mb-3" />
+                </template>
+                <template x-if="!form.imagePreview">
+                  <div class="mb-3">
+                    <div class="w-14 h-14 bg-[#fdf2f3] rounded-2xl flex items-center justify-center mx-auto">
+                      <svg class="w-7 h-7 text-[#c4adb0]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                      </svg>
+                    </div>
+                  </div>
+                </template>
+                <p x-show="!form.imagePreview" class="text-sm font-medium text-gray-500">
+                  اسحب الصورة هنا أو <span class="text-[#902c34]">انقر للاختيار</span>
+                </p>
+                <p x-show="!form.imagePreview" class="text-xs text-gray-300 mt-1">PNG, JPG, PDF — حتى 10 MB</p>
+                <p x-show="form.imageName" class="text-xs text-[#902c34] mt-2 font-medium truncate" x-text="form.imageName"></p>
+                <button x-show="form.imagePreview" type="button" @click.stop="removeFile()"
+                  class="mt-2 text-xs text-red-400 hover:text-red-600 underline">إزالة الصورة</button>
+              </div>
+              <input type="file" x-ref="fileInput" class="hidden" accept="image/*,.pdf" @change="handleFileInput($event)" />
+            </div>
+
+            <!-- Status -->
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-2">حالة الفاتورة <span class="text-red-400">*</span></label>
+              <div class="relative">
+                <select x-model="form.status" class="field appearance-none" required>
+                  <option value="">— اختر الحالة —</option>
+                  <option value="Processed">✅ تم تجهيز الفاتورة</option>
+                  <option value="Pending">🕐 لم تجهز الفاتورة</option>
+                  <option value="Postponed">⏳ تم التأجيل</option>
+                </select>
+                <div class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Reason (dynamic) -->
+            <div x-show="form.status === 'Pending' || form.status === 'Postponed'"
+              x-transition:enter="transition ease-out duration-200"
+              x-transition:enter-start="opacity-0 -translate-y-2"
+              x-transition:enter-end="opacity-100 translate-y-0">
+              <label class="block text-sm font-semibold text-gray-700 mb-2">السبب <span class="text-red-400">*</span></label>
+              <textarea x-model="form.reason" rows="3" placeholder="أدخل سبباً مفصّلاً..."
+                class="field resize-none"
+                :required="form.status === 'Pending' || form.status === 'Postponed'"></textarea>
+            </div>
+
+            <!-- Error -->
+            <div x-show="formError" class="flex items-center gap-2 bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl border border-red-100">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span x-text="formError"></span>
+            </div>
+
+            <!-- Success -->
+            <div x-show="formSuccess" class="flex items-center gap-2 bg-emerald-50 text-emerald-700 text-sm px-4 py-3 rounded-xl border border-emerald-100">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              تم حفظ الفاتورة بنجاح! 🎉
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" :disabled="loading"
+              class="w-full text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md"
+              style="background:#902c34"
+              onmouseover="if(!this.disabled)this.style.background='#7a2229'"
+              onmouseout="this.style.background='#902c34'">
+              <svg x-show="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <svg x-show="!loading" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span x-text="loading ? 'جاري الحفظ...' : 'حفظ الفاتورة'"></span>
+            </button>
+
+            <button type="button" @click="page='dashboard'"
+              class="w-full text-sm text-gray-400 hover:text-gray-600 py-2 transition-colors">
+              ← العودة إلى لوحة التحكم
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     MODAL: VIEW INVOICE
+══════════════════════════════════════════════════ -->
+<div x-show="viewModal.open" x-cloak
+  class="fixed inset-0 z-50 flex items-center justify-center p-6 modal-bg"
+  @click.self="viewModal.open=false">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto fade-in">
+
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div>
+        <h3 class="font-bold text-gray-800">تفاصيل الفاتورة</h3>
+        <p class="text-xs text-gray-400 mt-0.5" x-text="'# ' + (viewModal.inv?.invoice_number || '')"></p>
+      </div>
+      <button @click="viewModal.open=false"
+        class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="p-6 space-y-5">
+      <template x-if="viewModal.inv?.image_path">
+        <div class="rounded-xl overflow-hidden border border-gray-100 bg-gray-50">
+          <img :src="viewModal.inv.image_path" class="w-full object-contain max-h-72" alt="صورة الفاتورة" />
+        </div>
+      </template>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-400 mb-1">رقم الفاتورة</p>
+          <p class="font-semibold text-gray-800" x-text="viewModal.inv?.invoice_number"></p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-400 mb-1">المبلغ</p>
+          <p class="font-semibold text-gray-800" x-text="iqd(viewModal.inv?.amount)"></p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-400 mb-1">الحالة</p>
+          <span :class="badgeClass(viewModal.inv?.status)"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold mt-1">
+            <span :class="dotClass(viewModal.inv?.status)" class="w-1.5 h-1.5 rounded-full"></span>
+            <span x-text="statusAr(viewModal.inv?.status)"></span>
+          </span>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-400 mb-1">التاريخ</p>
+          <p class="font-semibold text-gray-800 text-sm" x-text="fmtDate(viewModal.inv?.created_at)"></p>
+        </div>
+      </div>
+
+      <!-- ── Clerk row in view modal ── -->
+      <div class="bg-[#fdf2f3] border border-[#f5c6c9] rounded-xl p-4 flex items-center gap-3">
+        <div class="w-9 h-9 rounded-full bg-white border border-[#f5c6c9] flex items-center justify-center flex-shrink-0">
+          <svg class="w-4 h-4 text-[#902c34]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-xs text-[#902c34] font-semibold">الموظف المسؤول</p>
+          <p class="text-sm font-bold text-gray-800" x-text="clerk"></p>
+        </div>
+      </div>
+
+      <div x-show="viewModal.inv?.reason" class="bg-amber-50 border border-amber-100 rounded-xl p-4">
+        <p class="text-xs font-semibold text-amber-600 mb-1">السبب</p>
+        <p class="text-sm text-amber-800" x-text="viewModal.inv?.reason"></p>
+      </div>
+
+      <template x-if="viewModal.inv?.image_path">
+        <a :href="viewModal.inv.image_path" target="_blank"
+          class="flex items-center justify-center gap-2 w-full border border-[#f5c6c9] text-[#902c34] hover:bg-[#fdf2f3] text-sm font-medium py-2.5 rounded-xl transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+          </svg>
+          فتح الصورة في تبويب جديد
+        </a>
+      </template>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     MODAL: EDIT INVOICE
+══════════════════════════════════════════════════ -->
+<div x-show="editModal.open" x-cloak
+  class="fixed inset-0 z-50 flex items-center justify-center p-6 modal-bg"
+  @click.self="editModal.open=false">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto fade-in">
+
+    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div>
+        <h3 class="font-bold text-gray-800">تعديل الفاتورة</h3>
+        <p class="text-xs text-gray-400 mt-0.5" x-text="'# ' + (editModal.inv?.invoice_number || '')"></p>
+      </div>
+      <button @click="editModal.open=false"
+        class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <form @submit.prevent="submitEdit()" class="p-6 space-y-5">
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">رقم الفاتورة <span class="text-red-400">*</span></label>
+        <input x-model="editModal.form.invoice_number" type="text" class="field" required />
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">المبلغ (د.ع) <span class="text-red-400">*</span></label>
+        <div class="relative">
+          <input x-model="editModal.form.amount" type="number" step="1" min="0" class="field pl-14" required />
+          <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold pointer-events-none">د.ع</span>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">تغيير صورة الفاتورة (اختياري)</label>
+        <div class="border-2 border-dashed border-gray-200 rounded-xl p-5 text-center cursor-pointer hover:border-[#902c34] hover:bg-[#fdf2f3]/30 transition-all"
+          @click="$refs.editFileInput.click()">
+          <template x-if="editModal.form.newImagePreview">
+            <img :src="editModal.form.newImagePreview" class="mx-auto max-h-28 rounded-lg object-contain mb-2" />
+          </template>
+          <template x-if="!editModal.form.newImagePreview && editModal.inv?.image_path">
+            <img :src="editModal.inv.image_path" class="mx-auto max-h-28 rounded-lg object-contain mb-2 opacity-60" />
+          </template>
+          <p class="text-xs text-gray-400" x-text="editModal.form.newImageName || 'انقر لتغيير الصورة الحالية'"></p>
+        </div>
+        <input type="file" x-ref="editFileInput" class="hidden" accept="image/*,.pdf" @change="handleEditFile($event)" />
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-2">الحالة <span class="text-red-400">*</span></label>
+        <div class="relative">
+          <select x-model="editModal.form.status" class="field appearance-none" required>
+            <option value="Processed">✅ تم تجهيز الفاتورة</option>
+            <option value="Pending">🕐 لم تجهز الفاتورة</option>
+            <option value="Postponed">⏳ تم التأجيل</option>
+          </select>
+          <div class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div x-show="editModal.form.status === 'Pending' || editModal.form.status === 'Postponed'"
+        x-transition:enter="transition ease-out duration-150"
+        x-transition:enter-start="opacity-0 -translate-y-1"
+        x-transition:enter-end="opacity-100 translate-y-0">
+        <label class="block text-sm font-semibold text-gray-700 mb-2">السبب</label>
+        <textarea x-model="editModal.form.reason" rows="3" class="field resize-none" placeholder="أدخل السبب..."></textarea>
+      </div>
+      <div x-show="editModal.error" class="flex items-center gap-2 bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl border border-red-100">
+        <span x-text="editModal.error"></span>
+      </div>
+      <div class="flex gap-3 pt-1">
+        <button type="submit" :disabled="editModal.loading"
+          class="flex-1 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2">
+          <svg x-show="editModal.loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <span x-text="editModal.loading ? 'جاري الحفظ...' : 'حفظ التعديلات'"></span>
+        </button>
+        <button type="button" @click="editModal.open=false"
+          class="px-5 py-3 border border-gray-200 text-gray-500 hover:bg-gray-50 rounded-xl transition-colors text-sm font-medium">
+          إلغاء
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     MODAL: DELETE CONFIRMATION
+══════════════════════════════════════════════════ -->
+<div x-show="deleteModal.open" x-cloak
+  class="fixed inset-0 z-50 flex items-center justify-center p-6 modal-bg"
+  @click.self="deleteModal.open=false">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full fade-in">
+    <div class="p-6 text-center">
+      <div class="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <svg class="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+      </div>
+      <h3 class="text-lg font-bold text-gray-800 mb-2">تأكيد الحذف</h3>
+      <p class="text-sm text-gray-500 mb-1">
+        هل أنت متأكد من حذف الفاتورة
+        <span class="font-semibold text-gray-800" x-text="'#' + (deleteModal.inv?.invoice_number || '')"></span>؟
+      </p>
+      <p class="text-xs text-red-400 mb-6">هذا الإجراء لا يمكن التراجع عنه.</p>
+      <div class="flex gap-3">
+        <button @click="execDelete()" :disabled="deleteModal.loading"
+          class="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+          <svg x-show="deleteModal.loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          <span x-text="deleteModal.loading ? 'جاري الحذف...' : 'نعم، احذف'"></span>
+        </button>
+        <button @click="deleteModal.open=false"
+          class="flex-1 border border-gray-200 text-gray-500 hover:bg-gray-50 font-medium py-2.5 rounded-xl transition-colors">
+          إلغاء
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     ALPINE.JS APP LOGIC
+══════════════════════════════════════════════════ -->
+<script>
+function app() {
+  return {
+    // ── State ───────────────────────────────────────────────
+    page: 'login',   // 'login' | 'dashboard' | 'form'
+    clerk: CLERK_NAME,
+    today: new Date().toLocaleDateString('ar-IQ', { weekday:'long', year:'numeric', month:'long', day:'numeric' }),
+
+    // ── Login ────────────────────────────────────────────────
+    loginForm: { username:'', password:'', error:'', loading:false },
+
+    doLogin() {
+      this.loginForm.error = '';
+      if (!this.loginForm.username.trim() || !this.loginForm.password) {
+        this.loginForm.error = 'الرجاء إدخال اسم المستخدم وكلمة المرور';
+        return;
+      }
+      this.loginForm.loading = true;
+      // Simulate a brief network delay for UX polish
+      setTimeout(() => {
+        if (this.loginForm.username.trim() === VALID_USER && this.loginForm.password === VALID_PASS) {
+          this.loginForm.loading = false;
+          this.page = 'dashboard';
+          this.loadData();
+        } else {
+          this.loginForm.loading = false;
+          this.loginForm.error = 'اسم المستخدم أو كلمة المرور غير صحيحة';
+        }
+      }, 500);
+    },
+
+    logout() {
+      this.loginForm = { username:'', password:'', error:'', loading:false };
+      this.page = 'login';
+    },
+
+    // ── Data ─────────────────────────────────────────────────
+    invoices: [],
+    stats: { total:0, processed:0, pending:0, postponed:0, totalAmount:0 },
+
+    // ── Create form ──────────────────────────────────────────
+    form: { invoice_number:'', amount:'', status:'', reason:'', imageFile:null, imagePreview:null, imageName:null },
+    loading:     false,
+    formError:   '',
+    formSuccess: false,
+
+    // ── Modals ───────────────────────────────────────────────
+    viewModal:   { open:false, inv:null },
+    editModal:   { open:false, inv:null, loading:false, error:'',
+                   form:{ invoice_number:'', amount:'', status:'', reason:'', newImageFile:null, newImagePreview:null, newImageName:'' } },
+    deleteModal: { open:false, inv:null, loading:false },
+
+    // ── Init ─────────────────────────────────────────────────
+    init() {
+      // Stay on login until authenticated
+    },
+
+    // ── Load data ────────────────────────────────────────────
+    async loadData() {
+      try {
+        const [s, i] = await Promise.all([fetch('/api/stats'), fetch('/api/invoices')]);
+        this.stats    = await s.json();
+        this.invoices = await i.json();
+      } catch(e) { console.error('loadData:', e); }
+    },
+
+    // ── Create form ──────────────────────────────────────────
+    resetForm() {
+      this.form = { invoice_number:'', amount:'', status:'', reason:'', imageFile:null, imagePreview:null, imageName:null };
+      this.formError = ''; this.formSuccess = false; this.loading = false;
+    },
+    handleDrop(e)      { const f=e.dataTransfer.files[0]; if(f) this.setFile(f); },
+    handleFileInput(e) { const f=e.target.files[0];       if(f) this.setFile(f); },
+    setFile(file) {
+      this.form.imageFile = file;
+      this.form.imageName = file.name;
+      if(file.type.startsWith('image/')) {
+        const r = new FileReader();
+        r.onload = e => { this.form.imagePreview = e.target.result; };
+        r.readAsDataURL(file);
+      } else {
+        this.form.imagePreview = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23902c34"><path d="M7 3a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5H7z"/></svg>';
+      }
+    },
+    removeFile() {
+      this.form.imageFile = null; this.form.imagePreview = null; this.form.imageName = null;
+      if(this.$refs.fileInput) this.$refs.fileInput.value = '';
+    },
+
+    async submitForm() {
+      this.formError = ''; this.formSuccess = false;
+      if(!this.form.invoice_number.trim()) return (this.formError = 'رقم الفاتورة مطلوب');
+      if(this.form.amount === '' || this.form.amount < 0) return (this.formError = 'أدخل مبلغاً صحيحاً');
+      if(!this.form.status) return (this.formError = 'اختر حالة الفاتورة');
+      if((this.form.status==='Pending'||this.form.status==='Postponed') && !this.form.reason.trim())
+        return (this.formError = 'السبب مطلوب لهذه الحالة');
+
+      this.loading = true;
+      try {
+        const fd = new FormData();
+        fd.append('invoice_number', this.form.invoice_number.trim());
+        fd.append('amount', this.form.amount);
+        fd.append('status', this.form.status);
+        fd.append('reason', this.form.reason.trim());
+        if(this.form.imageFile) fd.append('image', this.form.imageFile);
+
+        const r = await fetch('/api/invoices', { method:'POST', body:fd });
+        const d = await r.json();
+        if(!r.ok) throw new Error(d.error || 'فشل الحفظ');
+
+        this.formSuccess = true;
+        this.resetForm();
+        await this.loadData();
+        setTimeout(() => { this.page = 'dashboard'; }, 1400);
+      } catch(err) {
+        this.formError = err.message;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // ── View ─────────────────────────────────────────────────
+    openView(inv) { this.viewModal.inv = inv; this.viewModal.open = true; },
+
+    // ── Edit ─────────────────────────────────────────────────
+    openEdit(inv) {
+      this.editModal.inv = inv; this.editModal.error = '';
+      this.editModal.form = {
+        invoice_number: inv.invoice_number, amount: inv.amount,
+        status: inv.status, reason: inv.reason || '',
+        newImageFile: null, newImagePreview: null, newImageName: '',
+      };
+      this.editModal.open = true;
+    },
+    handleEditFile(e) {
+      const f = e.target.files[0]; if(!f) return;
+      this.editModal.form.newImageFile = f;
+      this.editModal.form.newImageName = f.name;
+      if(f.type.startsWith('image/')) {
+        const r = new FileReader();
+        r.onload = ev => { this.editModal.form.newImagePreview = ev.target.result; };
+        r.readAsDataURL(f);
+      }
+    },
+    async submitEdit() {
+      this.editModal.error = ''; this.editModal.loading = true;
+      try {
+        const fd = new FormData();
+        fd.append('invoice_number', this.editModal.form.invoice_number.trim());
+        fd.append('amount', this.editModal.form.amount);
+        fd.append('status', this.editModal.form.status);
+        fd.append('reason', this.editModal.form.reason?.trim() || '');
+        if(this.editModal.form.newImageFile) fd.append('image', this.editModal.form.newImageFile);
+
+        const r = await fetch('/api/invoices/' + this.editModal.inv.id, { method:'PUT', body:fd });
+        const d = await r.json();
+        if(!r.ok) throw new Error(d.error || 'فشل التعديل');
+
+        this.editModal.open = false;
+        await this.loadData();
+      } catch(err) {
+        this.editModal.error = err.message;
+      } finally {
+        this.editModal.loading = false;
+      }
+    },
+
+    // ── Delete ───────────────────────────────────────────────
+    confirmDelete(inv) { this.deleteModal.inv = inv; this.deleteModal.open = true; this.deleteModal.loading = false; },
+    async execDelete() {
+      this.deleteModal.loading = true;
+      try {
+        const r = await fetch('/api/invoices/' + this.deleteModal.inv.id, { method:'DELETE' });
+        if(!r.ok) { const d=await r.json(); throw new Error(d.error); }
+        this.deleteModal.open = false;
+        await this.loadData();
+      } catch(e) {
+        alert('حدث خطأ: ' + e.message);
+      } finally {
+        this.deleteModal.loading = false;
+      }
+    },
+
+    // ── Helpers ──────────────────────────────────────────────
+    iqd(v) {
+      if(v===undefined||v===null) return '0 د.ع';
+      return Number(v).toLocaleString('ar-IQ') + ' د.ع';
+    },
+    fmtDate(dt) {
+      if(!dt) return '—';
+      return new Date(dt).toLocaleString('ar-IQ', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    },
+    statusAr(s) {
+      return { Processed:'تم تجهيز الفاتورة', Pending:'لم تجهز الفاتورة', Postponed:'تم التأجيل' }[s] || s;
+    },
+    badgeClass(s) {
+      return { Processed:'badge-processed', Pending:'badge-pending', Postponed:'badge-postponed' }[s] || 'badge-pending';
+    },
+    dotClass(s) {
+      return { Processed:'bg-emerald-500', Pending:'bg-slate-400', Postponed:'bg-amber-400' }[s] || 'bg-slate-400';
+    },
+  };
+}
+</script>
+</body>
+</html>
