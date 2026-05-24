@@ -1,81 +1,81 @@
 // ================================================================
 //  Invoice Workflow Tracker — Express + Supabase (DB + Storage)
-//  • Database  : Supabase PostgreSQL via supabase-js client
-//  • Storage   : Supabase Storage bucket "invoices"
-//  • No raw pg / no local file writes in production
-//  • Deployment: Render (monolithic — serves frontend + API)
+//  Auth    : express-session + ADMIN_USERNAME / ADMIN_PASSWORD env vars
+//  Database: Supabase PostgreSQL via supabase-js client
+//  Storage : Supabase Storage bucket "invoices"
+//  Deploy  : Render (monolithic — serves frontend + API)
 // ================================================================
 require('dotenv').config();
 
 const express          = require('express');
+const session          = require('express-session');
 const path             = require('path');
-const fs               = require('fs');
 const multer           = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 
 // ════════════════════════════════════════════════════════════════
-//  BOOT GUARD — crash early with a clear message if creds missing
+//  BOOT GUARD — fail fast with actionable messages
 // ════════════════════════════════════════════════════════════════
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-  console.error(
-    '\n❌  SUPABASE_URL and SUPABASE_KEY must be set.\n' +
-    '    Copy .env.example → .env and fill in your Supabase credentials.\n'
-  );
+const REQUIRED_ENV = [
+  'SUPABASE_URL',
+  'SUPABASE_KEY',
+  'ADMIN_USERNAME',
+  'ADMIN_PASSWORD',
+  'SESSION_SECRET',
+];
+const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missing.length) {
+  console.error('\n❌  Missing required environment variables:');
+  missing.forEach(k => console.error(`    • ${k}`));
+  console.error('\n    Set them in your .env file (local) or Render dashboard (production).\n');
   process.exit(1);
 }
 
 // ════════════════════════════════════════════════════════════════
-//  1. SUPABASE CLIENT
-//     Uses the service_role key → bypasses RLS for server-side ops
+//  1. SUPABASE CLIENT (service_role key → bypasses RLS)
 // ════════════════════════════════════════════════════════════════
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY,
   {
     auth: {
-      // Running server-side — disable auto session / token refresh
-      persistSession:    false,
-      autoRefreshToken:  false,
-      detectSessionInUrl:false,
+      persistSession:     false,
+      autoRefreshToken:   false,
+      detectSessionInUrl: false,
     },
   }
 );
 
 const BUCKET = process.env.SUPABASE_BUCKET || 'invoices';
 
-console.log(`☁️   Supabase connected  →  ${process.env.SUPABASE_URL}`);
-console.log(`🪣   Storage bucket      →  "${BUCKET}"`);
+console.log(`☁️   Supabase  →  ${process.env.SUPABASE_URL}`);
+console.log(`🪣   Bucket    →  "${BUCKET}"`);
 
 // ════════════════════════════════════════════════════════════════
-//  2. DATABASE BOOTSTRAP
-//     Verifies the invoices table exists at startup.
-//     The table must be created once via Supabase SQL Editor (schema.sql).
+//  2. DATABASE BOOTSTRAP — verify table exists on startup
 // ════════════════════════════════════════════════════════════════
 async function initDb() {
-  // Probe the table with a lightweight query.
-  // supabase-js v2 always returns { data, error } — never use .catch() on it.
   const { error } = await supabase
     .from('invoices')
     .select('id')
     .limit(1);
 
   if (error) {
-    // code 42P01 = table does not exist (PostgreSQL undefined_table)
     if (error.code === '42P01' || error.message?.includes('does not exist')) {
-      console.error('\n❌  The "invoices" table was not found in your Supabase database.');
-      console.error('    Run schema.sql once in Supabase Dashboard → SQL Editor, then redeploy.\n');
+      console.error('\n❌  Table "invoices" not found.');
+      console.error('    Run schema.sql once in Supabase → SQL Editor, then redeploy.\n');
     } else {
-      console.error('\n❌  Database connectivity error:', error.message);
-      console.error('    Check that SUPABASE_URL and SUPABASE_KEY are correct.\n');
+      console.error('\n❌  Database error:', error.message);
+      console.error('    Check SUPABASE_URL and SUPABASE_KEY.\n');
     }
     process.exit(1);
   }
 
-  console.log('✅  Database table "invoices" is ready');
+  console.log('✅  Database ready');
 }
 
 // ════════════════════════════════════════════════════════════════
-//  3. MULTER — memory storage (buffer → Supabase, no disk writes)
+//  3. MULTER — memory storage (no disk writes ever)
 // ════════════════════════════════════════════════════════════════
 const ALLOWED_EXT = /\.(jpe?g|png|gif|webp|pdf)$/i;
 const MIME_MAP = {
@@ -89,7 +89,7 @@ const MIME_MAP = {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits:  { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits:  { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     ALLOWED_EXT.test(path.extname(file.originalname))
       ? cb(null, true)
@@ -100,56 +100,33 @@ const upload = multer({
 // ════════════════════════════════════════════════════════════════
 //  4. STORAGE HELPERS
 // ════════════════════════════════════════════════════════════════
-
-/**
- * uploadToSupabase(buffer, originalName)
- * Uploads a file buffer to Supabase Storage.
- * Returns { url, storagePath }
- *   url         — permanent public HTTPS URL → saved in image_path column
- *   storagePath — bucket-relative path       → saved in image_storage_path column
- *                 (used later to delete the file when invoice is updated/deleted)
- */
 async function uploadToSupabase(buffer, originalName) {
   const ext         = path.extname(originalName).toLowerCase();
   const contentType = MIME_MAP[ext] || 'application/octet-stream';
-
-  // Unique, safe filename: timestamp + sanitised original name
   const safeName    = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
   const storagePath = `invoices/${Date.now()}-${safeName}`;
 
-  console.log(`📤  Uploading "${originalName}" (${(buffer.length / 1024).toFixed(1)} KB) → Supabase bucket "${BUCKET}"…`);
+  console.log(`📤  Uploading "${originalName}" (${(buffer.length / 1024).toFixed(1)} KB)…`);
 
-  const { error: uploadError } = await supabase.storage
+  const { error } = await supabase.storage
     .from(BUCKET)
     .upload(storagePath, buffer, { contentType, upsert: false });
 
-  if (uploadError) {
-    throw new Error(`Supabase Storage upload failed: ${uploadError.message}`);
-  }
+  if (error) throw new Error(`Storage upload failed: ${error.message}`);
 
-  // getPublicUrl is synchronous — it constructs the URL locally, no network call
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
-
   console.log(`✅  Stored → ${data.publicUrl}`);
   return { url: data.publicUrl, storagePath };
 }
 
-/**
- * deleteFromSupabase(storagePath)
- * Deletes a file from Supabase Storage. Never throws — a failed delete
- * should not block the user's main action (edit/delete invoice).
- */
 async function deleteFromSupabase(storagePath) {
   if (!storagePath) return;
   try {
     const { error } = await supabase.storage.from(BUCKET).remove([storagePath]);
-    if (error) {
-      console.warn(`⚠️   Could not delete storage object "${storagePath}": ${error.message}`);
-    } else {
-      console.log(`🗑️   Deleted storage object: ${storagePath}`);
-    }
+    if (error) console.warn(`⚠️   Storage delete warning "${storagePath}": ${error.message}`);
+    else       console.log(`🗑️   Deleted: ${storagePath}`);
   } catch (err) {
-    console.warn(`⚠️   deleteFromSupabase exception: ${err.message}`);
+    console.warn(`⚠️   deleteFromSupabase: ${err.message}`);
   }
 }
 
@@ -159,28 +136,105 @@ async function deleteFromSupabase(storagePath) {
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// Body parsers — MUST come before any route that reads req.body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Session — server-side, cookie-based
+// SESSION_SECRET must be a long random string set in env vars
+app.use(session({
+  secret:            process.env.SESSION_SECRET,
+  resave:            false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === 'production', // HTTPS-only on Render
+    maxAge:   8 * 60 * 60 * 1000,                   // 8 hours
+    sameSite: 'lax',
+  },
+}));
+
+// Static files (frontend)
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ════════════════════════════════════════════════════════════════
-//  6. API ROUTES
+//  6. AUTH ROUTES (public — no session required)
+// ════════════════════════════════════════════════════════════════
+
+// POST /api/login
+// Accepts JSON: { username, password }
+// The frontend sends fetch('/api/login', { method:'POST', body: JSON.stringify({...}),
+//   headers:{'Content-Type':'application/json'} })
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+
+  // Trim whitespace so copy-paste accidents don't cause failures
+  const submittedUser = (username || '').trim();
+  const submittedPass = (password || '').trim();
+
+  const correctUser = (process.env.ADMIN_USERNAME || '').trim();
+  const correctPass = (process.env.ADMIN_PASSWORD || '').trim();
+
+  // Strict comparison against env vars — NO hardcoded fallback
+  if (submittedUser === correctUser && submittedPass === correctPass) {
+    req.session.authenticated = true;
+    req.session.username      = submittedUser;
+    console.log(`🔐  Login successful: ${submittedUser}`);
+    return res.json({ success: true });
+  }
+
+  console.warn(`⚠️   Failed login attempt for username: "${submittedUser}"`);
+  // Use the same generic message for both wrong user AND wrong password
+  // (don't reveal which one was wrong)
+  return res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+});
+
+// POST /api/logout
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(err => {
+    if (err) console.warn('Session destroy error:', err.message);
+    res.clearCookie('connect.sid');
+    res.json({ success: true });
+  });
+});
+
+// GET /api/me — lets the frontend check if a session is still valid on page load
+app.get('/api/me', (req, res) => {
+  if (req.session.authenticated) {
+    return res.json({ authenticated: true, username: req.session.username });
+  }
+  res.status(401).json({ authenticated: false });
+});
+
+// ════════════════════════════════════════════════════════════════
+//  7. AUTH GUARD MIDDLEWARE
+//     Protects all /api/* routes that come AFTER this point.
+//     Login/logout/me are already defined above, so they are unaffected.
+// ════════════════════════════════════════════════════════════════
+function requireAuth(req, res, next) {
+  if (req.session.authenticated) return next();
+  res.status(401).json({ error: 'غير مصرح. يرجى تسجيل الدخول أولاً.' });
+}
+
+app.use('/api', requireAuth);
+
+// ════════════════════════════════════════════════════════════════
+//  8. PROTECTED API ROUTES
 // ════════════════════════════════════════════════════════════════
 
 // ── GET /api/stats ────────────────────────────────────────────
 app.get('/api/stats', async (_req, res) => {
   try {
-    // Fetch all invoices (small dataset — single clerk system)
     const { data, error } = await supabase
       .from('invoices')
       .select('status, amount');
 
     if (error) throw new Error(error.message);
 
-    const total      = data.length;
-    const processed  = data.filter(r => r.status === 'Processed').length;
-    const pending    = data.filter(r => r.status === 'Pending').length;
-    const postponed  = data.filter(r => r.status === 'Postponed').length;
+    const total       = data.length;
+    const processed   = data.filter(r => r.status === 'Processed').length;
+    const pending     = data.filter(r => r.status === 'Pending').length;
+    const postponed   = data.filter(r => r.status === 'Postponed').length;
     const totalAmount = data.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
 
     res.json({ total, processed, pending, postponed, totalAmount });
@@ -228,7 +282,6 @@ app.post('/api/invoices', upload.single('image'), async (req, res) => {
   try {
     const { invoice_number, amount, status, reason } = req.body;
 
-    // ── Input validation ────────────────────────────────────
     if (!invoice_number?.trim())
       return res.status(400).json({ error: 'رقم الفاتورة مطلوب' });
     if (amount === undefined || amount === null || amount === '')
@@ -240,31 +293,20 @@ app.post('/api/invoices', upload.single('image'), async (req, res) => {
     if (!VALID.includes(status))
       return res.status(400).json({ error: 'قيمة الحالة غير صحيحة' });
 
-    // ── Upload image to Supabase Storage ────────────────────
-    let image_path         = null;
-    let image_storage_path = null;
-
+    let image_path = null, image_storage_path = null;
     if (req.file) {
       const saved        = await uploadToSupabase(req.file.buffer, req.file.originalname);
-      image_path         = saved.url;          // public URL → displayed in UI
-      image_storage_path = saved.storagePath;  // bucket path → used for deletion later
+      image_path         = saved.url;
+      image_storage_path = saved.storagePath;
     }
 
     const finalReason = (status === 'Pending' || status === 'Postponed')
-      ? (reason?.trim() || null)
-      : null;
+      ? (reason?.trim() || null) : null;
 
-    // ── Insert into Supabase DB ─────────────────────────────
     const { data, error } = await supabase
       .from('invoices')
-      .insert({
-        invoice_number: invoice_number.trim(),
-        amount:         parseFloat(amount),
-        image_path,
-        image_storage_path,
-        status,
-        reason:         finalReason,
-      })
+      .insert({ invoice_number: invoice_number.trim(), amount: parseFloat(amount),
+                image_path, image_storage_path, status, reason: finalReason })
       .select()
       .single();
 
@@ -282,55 +324,36 @@ app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
     const id = req.params.id;
     const { invoice_number, amount, status, reason } = req.body;
 
-    // ── Fetch current record ────────────────────────────────
     const { data: current, error: fetchErr } = await supabase
-      .from('invoices')
-      .select('*')
-      .eq('id', id)
-      .single();
-
+      .from('invoices').select('*').eq('id', id).single();
     if (fetchErr) return res.status(404).json({ error: 'الفاتورة غير موجودة' });
 
     const VALID = ['Processed', 'Pending', 'Postponed'];
     if (status && !VALID.includes(status))
       return res.status(400).json({ error: 'قيمة الحالة غير صحيحة' });
 
-    // ── Handle image replacement ────────────────────────────
-    let image_path         = current.image_path;
-    let image_storage_path = current.image_storage_path;
+    let image_path = current.image_path, image_storage_path = current.image_storage_path;
 
     if (req.file) {
-      // Step 1: delete old file from Supabase Storage
-      if (current.image_storage_path) {
-        await deleteFromSupabase(current.image_storage_path);
-      }
-      // Step 2: upload new file
-      const saved        = await uploadToSupabase(req.file.buffer, req.file.originalname);
+      if (current.image_storage_path) await deleteFromSupabase(current.image_storage_path);
+      const saved    = await uploadToSupabase(req.file.buffer, req.file.originalname);
       image_path         = saved.url;
       image_storage_path = saved.storagePath;
     }
 
     const finalStatus = status || current.status;
     const finalReason = (finalStatus === 'Pending' || finalStatus === 'Postponed')
-      ? (reason?.trim() ?? current.reason)
-      : null;
+      ? (reason?.trim() ?? current.reason) : null;
 
-    // ── Update in Supabase DB ───────────────────────────────
     const { data, error: updateErr } = await supabase
       .from('invoices')
       .update({
-        invoice_number:     invoice_number?.trim()  || current.invoice_number,
-        amount:             (amount !== undefined && amount !== '')
-                              ? parseFloat(amount)
-                              : current.amount,
-        image_path,
-        image_storage_path,
-        status:             finalStatus,
-        reason:             finalReason,
+        invoice_number:     invoice_number?.trim() || current.invoice_number,
+        amount:             (amount !== undefined && amount !== '') ? parseFloat(amount) : current.amount,
+        image_path, image_storage_path,
+        status: finalStatus, reason: finalReason,
       })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id).select().single();
 
     if (updateErr) throw new Error(updateErr.message);
     res.json(data);
@@ -343,27 +366,16 @@ app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
 // ── DELETE /api/invoices/:id ──────────────────────────────────
 app.delete('/api/invoices/:id', async (req, res) => {
   try {
-    // Fetch first so we have the storage path to delete
     const { data: inv, error: fetchErr } = await supabase
-      .from('invoices')
-      .select('image_storage_path')
-      .eq('id', req.params.id)
-      .single();
-
+      .from('invoices').select('image_storage_path').eq('id', req.params.id).single();
     if (fetchErr) return res.status(404).json({ error: 'الفاتورة غير موجودة' });
 
-    // Delete image from Supabase Storage (if any)
-    if (inv.image_storage_path) {
-      await deleteFromSupabase(inv.image_storage_path);
-    }
+    if (inv.image_storage_path) await deleteFromSupabase(inv.image_storage_path);
 
-    // Delete DB row
     const { error: deleteErr } = await supabase
-      .from('invoices')
-      .delete()
-      .eq('id', req.params.id);
-
+      .from('invoices').delete().eq('id', req.params.id);
     if (deleteErr) throw new Error(deleteErr.message);
+
     res.json({ success: true });
   } catch (err) {
     console.error('DELETE /api/invoices/:id:', err.message);
@@ -377,13 +389,13 @@ app.get('*', (_req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
-//  7. BOOT
+//  9. BOOT
 // ════════════════════════════════════════════════════════════════
 initDb()
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(`\n🚀  متتبع الفواتير يعمل على http://localhost:${PORT}\n`);
-    });
+    app.listen(PORT, () =>
+      console.log(`\n🚀  متتبع الفواتير يعمل على http://localhost:${PORT}\n`)
+    );
   })
   .catch(err => {
     console.error('❌  Boot failed:', err.message);
