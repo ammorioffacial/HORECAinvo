@@ -121,13 +121,11 @@
 
 <!--
   CONSTANTS (hardcoded clerk)
-  CLERK_NAME is referenced globally below — one place to change it.
+  CLERK_NAME is used throughout the UI — one place to change it.
+  Credentials are validated server-side via /api/login — nothing is hardcoded here.
 -->
 <script>
   const CLERK_NAME = 'دانيال';
-  // Hardcoded credentials (single-user, frontend-only guard)
-  const VALID_USER = 'admin';
-  const VALID_PASS = 'daniel2025';
 </script>
 
 <body x-data="app()" x-init="init()">
@@ -869,29 +867,45 @@ function app() {
     // ── Login ────────────────────────────────────────────────
     loginForm: { username:'', password:'', error:'', loading:false },
 
-    doLogin() {
+    async doLogin() {
       this.loginForm.error = '';
       if (!this.loginForm.username.trim() || !this.loginForm.password) {
         this.loginForm.error = 'الرجاء إدخال اسم المستخدم وكلمة المرور';
         return;
       }
       this.loginForm.loading = true;
-      // Simulate a brief network delay for UX polish
-      setTimeout(() => {
-        if (this.loginForm.username.trim() === VALID_USER && this.loginForm.password === VALID_PASS) {
-          this.loginForm.loading = false;
+      try {
+        const res = await fetch('/api/login', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            username: this.loginForm.username.trim(),
+            password: this.loginForm.password,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          this.loginForm = { username:'', password:'', error:'', loading:false };
           this.page = 'dashboard';
-          this.loadData();
+          await this.loadData();
         } else {
-          this.loginForm.loading = false;
-          this.loginForm.error = 'اسم المستخدم أو كلمة المرور غير صحيحة';
+          this.loginForm.error = data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة';
         }
-      }, 500);
+      } catch (err) {
+        this.loginForm.error = 'تعذّر الاتصال بالخادم. حاول مجدداً.';
+      } finally {
+        this.loginForm.loading = false;
+      }
     },
 
-    logout() {
+    async logout() {
+      try {
+        await fetch('/api/logout', { method: 'POST' });
+      } catch (_) {}
       this.loginForm = { username:'', password:'', error:'', loading:false };
-      this.page = 'login';
+      this.invoices  = [];
+      this.stats     = { total:0, processed:0, pending:0, postponed:0, totalAmount:0 };
+      this.page      = 'login';
     },
 
     // ── Data ─────────────────────────────────────────────────
@@ -910,9 +924,21 @@ function app() {
                    form:{ invoice_number:'', amount:'', status:'', reason:'', newImageFile:null, newImagePreview:null, newImageName:'' } },
     deleteModal: { open:false, inv:null, loading:false },
 
-    // ── Init ─────────────────────────────────────────────────
-    init() {
-      // Stay on login until authenticated
+    // ── Init — check existing session on page load ───────────
+    async init() {
+      try {
+        const res = await fetch('/api/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated) {
+            this.page = 'dashboard';
+            await this.loadData();
+            return;
+          }
+        }
+      } catch (_) {}
+      // No valid session — stay on login page
+      this.page = 'login';
     },
 
     // ── Load data ────────────────────────────────────────────
