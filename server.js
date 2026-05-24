@@ -48,50 +48,27 @@ console.log(`🪣   Storage bucket      →  "${BUCKET}"`);
 
 // ════════════════════════════════════════════════════════════════
 //  2. DATABASE BOOTSTRAP
-//     Creates the invoices table if it does not exist.
-//     Uses supabase.rpc to run raw SQL (service_role can do this).
+//     Verifies the invoices table exists at startup.
+//     The table must be created once via Supabase SQL Editor (schema.sql).
 // ════════════════════════════════════════════════════════════════
 async function initDb() {
-  // We use the REST API's rpc endpoint to execute DDL.
-  // If you prefer, run this SQL once manually in Supabase SQL Editor.
-  const { error } = await supabase.rpc('init_invoices_table').catch(() => ({ error: null }));
-  // rpc may not exist yet — that's fine; table creation is below via raw query
-  // Supabase doesn't expose raw DDL through the JS client directly, so we use
-  // the pg-compatible query endpoint available via the REST API.
-  // Best practice: run the CREATE TABLE in Supabase SQL Editor once.
-  // We'll attempt it here via a workaround using a dummy select to check existence.
-
-  const { error: checkError } = await supabase
+  // Probe the table with a lightweight query.
+  // supabase-js v2 always returns { data, error } — never use .catch() on it.
+  const { error } = await supabase
     .from('invoices')
     .select('id')
     .limit(1);
 
-  if (checkError && checkError.code === '42P01') {
-    // Table does not exist — this should be created via Supabase SQL Editor.
-    // Log the SQL so the user can run it manually.
-    console.warn('\n⚠️   The "invoices" table does not exist in your Supabase database.');
-    console.warn('    Please run the following SQL in Supabase Dashboard → SQL Editor:\n');
-    console.warn(`
-CREATE TABLE IF NOT EXISTS invoices (
-  id                  BIGSERIAL     PRIMARY KEY,
-  invoice_number      TEXT          NOT NULL,
-  amount              NUMERIC(15,2) NOT NULL DEFAULT 0,
-  image_path          TEXT,
-  image_storage_path  TEXT,
-  status              TEXT          NOT NULL
-                      CHECK (status IN ('Processed','Pending','Postponed')),
-  reason              TEXT,
-  created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_invoices_status     ON invoices(status);
-CREATE INDEX IF NOT EXISTS idx_invoices_created_at ON invoices(created_at DESC);
-    `);
-    console.warn('    Then restart the server.\n');
+  if (error) {
+    // code 42P01 = table does not exist (PostgreSQL undefined_table)
+    if (error.code === '42P01' || error.message?.includes('does not exist')) {
+      console.error('\n❌  The "invoices" table was not found in your Supabase database.');
+      console.error('    Run schema.sql once in Supabase Dashboard → SQL Editor, then redeploy.\n');
+    } else {
+      console.error('\n❌  Database connectivity error:', error.message);
+      console.error('    Check that SUPABASE_URL and SUPABASE_KEY are correct.\n');
+    }
     process.exit(1);
-  }
-
-  if (checkError && checkError.code !== '42P01') {
-    throw new Error(`Database check failed: ${checkError.message}`);
   }
 
   console.log('✅  Database table "invoices" is ready');
