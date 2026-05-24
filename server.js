@@ -249,13 +249,33 @@ app.get('/api/stats', async (_req, res) => {
 });
 
 // ── GET /api/invoices ─────────────────────────────────────────
-app.get('/api/invoices', async (_req, res) => {
+// Optional query params:
+//   status    — 'Processed' | 'Pending' | 'Postponed'
+//   dateFrom  — ISO date string, inclusive (e.g. 2025-01-01)
+//   dateTo    — ISO date string, inclusive (e.g. 2025-12-31)
+app.get('/api/invoices', async (req, res) => {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('invoices')
       .select('*')
       .order('created_at', { ascending: false });
 
+    const { status, dateFrom, dateTo } = req.query;
+
+    if (status && ['Processed', 'Pending', 'Postponed'].includes(status)) {
+      query = query.eq('status', status);
+    }
+    if (dateFrom) {
+      query = query.gte('created_at', new Date(dateFrom).toISOString());
+    }
+    if (dateTo) {
+      // include the full day by going to end-of-day
+      const end = new Date(dateTo);
+      end.setHours(23, 59, 59, 999);
+      query = query.lte('created_at', end.toISOString());
+    }
+
+    const { data, error } = await query;
     if (error) throw new Error(error.message);
     res.json(data);
   } catch (err) {
