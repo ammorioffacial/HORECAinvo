@@ -46,7 +46,7 @@ const supabase = createClient(
   }
 );
 
-const BUCKET = process.env.SUPABASE_BUCKET || 'invoices';
+const BUCKET = 'invoices'; // hardcoded — must match the bucket name in Supabase Storage
 
 console.log(`☁️   Supabase  →  ${process.env.SUPABASE_URL}`);
 console.log(`🪣   Bucket    →  "${BUCKET}"`);
@@ -104,17 +104,17 @@ async function uploadToSupabase(buffer, originalName) {
   const ext         = path.extname(originalName).toLowerCase();
   const contentType = MIME_MAP[ext] || 'application/octet-stream';
   const safeName    = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `invoices/${Date.now()}-${safeName}`;
+  const storagePath = `${Date.now()}-${safeName}`; // path inside the bucket (no subfolder prefix)
 
   console.log(`📤  Uploading "${originalName}" (${(buffer.length / 1024).toFixed(1)} KB)…`);
 
   const { error } = await supabase.storage
-    .from(BUCKET)
+    .from('invoices')
     .upload(storagePath, buffer, { contentType, upsert: false });
 
   if (error) throw new Error(`Storage upload failed: ${error.message}`);
 
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
+  const { data } = supabase.storage.from('invoices').getPublicUrl(storagePath);
   console.log(`✅  Stored → ${data.publicUrl}`);
   return { url: data.publicUrl, storagePath };
 }
@@ -122,7 +122,7 @@ async function uploadToSupabase(buffer, originalName) {
 async function deleteFromSupabase(storagePath) {
   if (!storagePath) return;
   try {
-    const { error } = await supabase.storage.from(BUCKET).remove([storagePath]);
+    const { error } = await supabase.storage.from('invoices').remove([storagePath]);
     if (error) console.warn(`⚠️   Storage delete warning "${storagePath}": ${error.message}`);
     else       console.log(`🗑️   Deleted: ${storagePath}`);
   } catch (err) {
@@ -297,11 +297,10 @@ app.post('/api/invoices', upload.single('image'), async (req, res) => {
     if (!VALID.includes(status))
       return res.status(400).json({ error: 'قيمة الحالة غير صحيحة' });
 
-    let image_path = null, image_storage_path = null;
+    let image_path = null;
     if (req.file) {
-      const saved        = await uploadToSupabase(req.file.buffer, req.file.originalname);
-      image_path         = saved.url;
-      image_storage_path = saved.storagePath;
+      const saved = await uploadToSupabase(req.file.buffer, req.file.originalname);
+      image_path  = saved.url;
     }
 
     const finalReason = (status === 'Pending' || status === 'Postponed')
@@ -310,7 +309,7 @@ app.post('/api/invoices', upload.single('image'), async (req, res) => {
     const { data, error } = await supabase
       .from('invoices')
       .insert({ invoice_number: invoice_number.trim(), amount: parseFloat(amount),
-                image_path, image_storage_path, status, reason: finalReason })
+                image_path, status, reason: finalReason })
       .select()
       .single();
 
@@ -336,13 +335,11 @@ app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
     if (status && !VALID.includes(status))
       return res.status(400).json({ error: 'قيمة الحالة غير صحيحة' });
 
-    let image_path = current.image_path, image_storage_path = current.image_storage_path;
+    let image_path = current.image_path;
 
     if (req.file) {
-      if (current.image_storage_path) await deleteFromSupabase(current.image_storage_path);
-      const saved    = await uploadToSupabase(req.file.buffer, req.file.originalname);
-      image_path         = saved.url;
-      image_storage_path = saved.storagePath;
+      const saved = await uploadToSupabase(req.file.buffer, req.file.originalname);
+      image_path  = saved.url;
     }
 
     const finalStatus = status || current.status;
@@ -352,9 +349,9 @@ app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
     const { data, error: updateErr } = await supabase
       .from('invoices')
       .update({
-        invoice_number:     invoice_number?.trim() || current.invoice_number,
-        amount:             (amount !== undefined && amount !== '') ? parseFloat(amount) : current.amount,
-        image_path, image_storage_path,
+        invoice_number: invoice_number?.trim() || current.invoice_number,
+        amount:         (amount !== undefined && amount !== '') ? parseFloat(amount) : current.amount,
+        image_path,
         status: finalStatus, reason: finalReason,
       })
       .eq('id', id).select().single();
@@ -371,10 +368,10 @@ app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
 app.delete('/api/invoices/:id', async (req, res) => {
   try {
     const { data: inv, error: fetchErr } = await supabase
-      .from('invoices').select('image_storage_path').eq('id', req.params.id).single();
+      .from('invoices').select('image_path').eq('id', req.params.id).single();
     if (fetchErr) return res.status(404).json({ error: 'الفاتورة غير موجودة' });
 
-    if (inv.image_storage_path) await deleteFromSupabase(inv.image_storage_path);
+    if (inv.image_path) await deleteFromSupabase(inv.image_path);
 
     const { error: deleteErr } = await supabase
       .from('invoices').delete().eq('id', req.params.id);
