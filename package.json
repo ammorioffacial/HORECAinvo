@@ -1,0 +1,23 @@
+{
+  "name": "invoice-workflow-tracker",
+  "version": "3.0.0",
+  "description": "متتبع سير الفواتير — Arabic UI, IQD, Supabase (DB + Storage), Render-ready",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "build": "echo 'No build step — monolithic Express app'"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.44.4",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "multer": "^2.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
