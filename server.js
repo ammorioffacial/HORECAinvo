@@ -136,6 +136,10 @@ async function deleteFromSupabase(storagePath) {
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy — required on Render (HTTPS reverse proxy)
+// Without this, secure cookies are never set because Express sees HTTP internally
+app.set('trust proxy', 1);
+
 // Body parsers — MUST come before any route that reads req.body
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
