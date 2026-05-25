@@ -339,6 +339,15 @@ app.post('/api/invoices', upload.single('image'), async (req, res) => {
     if (!VALID_STATUSES.includes(status))
       return res.status(400).json({ error: 'قيمة الحالة غير صحيحة' });
 
+    // ── Duplicate check ───────────────────────────────────────
+    const { data: existing, error: dupErr } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('invoice_number', invoice_number.trim())
+      .maybeSingle();
+    if (dupErr) throw new Error(dupErr.message);
+    if (existing) return res.status(400).json({ error: 'duplicate_invoice' });
+
     let image_path = null;
     if (req.file) {
       const saved = await uploadToSupabase(req.file.buffer, req.file.originalname);
