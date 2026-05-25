@@ -1,6 +1,6 @@
 // ================================================================
 //  Invoice Workflow Tracker — Express + Supabase (DB + Storage)
-//  Auth    : express-session + ADMIN_USERNAME / ADMIN_PASSWORD env vars
+//  Auth    : express-session + multi-user role-based (manager / employee)
 //  Database: Supabase PostgreSQL via supabase-js client
 //  Storage : Supabase Storage bucket "invoices"
 //  Deploy  : Render (monolithic — serves frontend + API)
@@ -19,8 +19,10 @@ const { createClient } = require('@supabase/supabase-js');
 const REQUIRED_ENV = [
   'SUPABASE_URL',
   'SUPABASE_KEY',
-  'ADMIN_USERNAME',
-  'ADMIN_PASSWORD',
+  'MANAGER_USERNAME',
+  'MANAGER_PASSWORD',
+  'DANIEL_USERNAME',
+  'DANIEL_PASSWORD',
   'SESSION_SECRET',
 ];
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
@@ -104,7 +106,7 @@ async function uploadToSupabase(buffer, originalName) {
   const ext         = path.extname(originalName).toLowerCase();
   const contentType = MIME_MAP[ext] || 'application/octet-stream';
   const safeName    = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `${Date.now()}-${safeName}`; // path inside the bucket (no subfolder prefix)
+  const storagePath = `${Date.now()}-${safeName}`;
 
   console.log(`📤  Uploading "${originalName}" (${(buffer.length / 1024).toFixed(1)} KB)…`);
 
@@ -137,23 +139,21 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // Trust proxy — required on Render (HTTPS reverse proxy)
-// Without this, secure cookies are never set because Express sees HTTP internally
 app.set('trust proxy', 1);
 
-// Body parsers — MUST come before any route that reads req.body
+// Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session — server-side, cookie-based
-// SESSION_SECRET must be a long random string set in env vars
+// Session
 app.use(session({
   secret:            process.env.SESSION_SECRET,
   resave:            false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production', // HTTPS-only on Render
-    maxAge:   8 * 60 * 60 * 1000,                   // 8 hours
+    secure:   process.env.NODE_ENV === 'production',
+    maxAge:   8 * 60 * 60 * 1000,   // 8 hours
     sameSite: 'lax',
   },
 }));
@@ -166,30 +166,35 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ════════════════════════════════════════════════════════════════
 
 // POST /api/login
-// Accepts JSON: { username, password }
-// The frontend sends fetch('/api/login', { method:'POST', body: JSON.stringify({...}),
-//   headers:{'Content-Type':'application/json'} })
+// Checks credentials against two user accounts:
+//   manager  → MANAGER_USERNAME / MANAGER_PASSWORD  (role: 'manager')
+//   employee → DANIEL_USERNAME  / DANIEL_PASSWORD   (role: 'employee')
 app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
+  const submittedUser = (req.body.username || '').trim();
+  const submittedPass = (req.body.password || '').trim();
 
-  // Trim whitespace so copy-paste accidents don't cause failures
-  const submittedUser = (username || '').trim();
-  const submittedPass = (password || '').trim();
+  const managerUser = (process.env.MANAGER_USERNAME || '').trim();
+  const managerPass = (process.env.MANAGER_PASSWORD || '').trim();
+  const danielUser  = (process.env.DANIEL_USERNAME  || '').trim();
+  const danielPass  = (process.env.DANIEL_PASSWORD  || '').trim();
 
-  const correctUser = (process.env.ADMIN_USERNAME || '').trim();
-  const correctPass = (process.env.ADMIN_PASSWORD || '').trim();
+  let role = null;
 
-  // Strict comparison against env vars — NO hardcoded fallback
-  if (submittedUser === correctUser && submittedPass === correctPass) {
+  if (submittedUser === managerUser && submittedPass === managerPass) {
+    role = 'manager';
+  } else if (submittedUser === danielUser && submittedPass === danielPass) {
+    role = 'employee';
+  }
+
+  if (role) {
     req.session.authenticated = true;
     req.session.username      = submittedUser;
-    console.log(`🔐  Login successful: ${submittedUser}`);
-    return res.json({ success: true });
+    req.session.role          = role;
+    console.log(`🔐  Login successful: ${submittedUser} (${role})`);
+    return res.json({ success: true, role });
   }
 
   console.warn(`⚠️   Failed login attempt for username: "${submittedUser}"`);
-  // Use the same generic message for both wrong user AND wrong password
-  // (don't reveal which one was wrong)
   return res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
 });
 
@@ -202,22 +207,31 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
-// GET /api/me — lets the frontend check if a session is still valid on page load
+// GET /api/me — frontend session check on page load
 app.get('/api/me', (req, res) => {
   if (req.session.authenticated) {
-    return res.json({ authenticated: true, username: req.session.username });
+    return res.json({
+      authenticated: true,
+      username:      req.session.username,
+      role:          req.session.role,
+    });
   }
   res.status(401).json({ authenticated: false });
 });
 
 // ════════════════════════════════════════════════════════════════
 //  7. AUTH GUARD MIDDLEWARE
-//     Protects all /api/* routes that come AFTER this point.
-//     Login/logout/me are already defined above, so they are unaffected.
 // ════════════════════════════════════════════════════════════════
 function requireAuth(req, res, next) {
   if (req.session.authenticated) return next();
   res.status(401).json({ error: 'غير مصرح. يرجى تسجيل الدخول أولاً.' });
+}
+
+// Only-manager guard — rejects employees with 403
+function requireManager(req, res, next) {
+  if (req.session.role === 'manager') return next();
+  console.warn(`🚫  Employee "${req.session.username}" attempted a manager-only action.`);
+  res.status(403).json({ error: 'هذا الإجراء مخصص للمدير فقط.' });
 }
 
 app.use('/api', requireAuth);
@@ -225,6 +239,9 @@ app.use('/api', requireAuth);
 // ════════════════════════════════════════════════════════════════
 //  8. PROTECTED API ROUTES
 // ════════════════════════════════════════════════════════════════
+
+// Valid status values (4 statuses)
+const VALID_STATUSES = ['Processed', 'Pending', 'PartialReturn', 'FullReturn'];
 
 // ── GET /api/stats ────────────────────────────────────────────
 app.get('/api/stats', async (_req, res) => {
@@ -235,13 +252,14 @@ app.get('/api/stats', async (_req, res) => {
 
     if (error) throw new Error(error.message);
 
-    const total       = data.length;
-    const processed   = data.filter(r => r.status === 'Processed').length;
-    const pending     = data.filter(r => r.status === 'Pending').length;
-    const postponed   = data.filter(r => r.status === 'Postponed').length;
-    const totalAmount = data.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+    const total         = data.length;
+    const processed     = data.filter(r => r.status === 'Processed').length;
+    const pending       = data.filter(r => r.status === 'Pending').length;
+    const partialReturn = data.filter(r => r.status === 'PartialReturn').length;
+    const fullReturn    = data.filter(r => r.status === 'FullReturn').length;
+    const totalAmount   = data.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
 
-    res.json({ total, processed, pending, postponed, totalAmount });
+    res.json({ total, processed, pending, partialReturn, fullReturn, totalAmount });
   } catch (err) {
     console.error('GET /api/stats:', err.message);
     res.status(500).json({ error: err.message });
@@ -250,7 +268,7 @@ app.get('/api/stats', async (_req, res) => {
 
 // ── GET /api/invoices ─────────────────────────────────────────
 // Optional query params:
-//   status    — 'Processed' | 'Pending' | 'Postponed'
+//   status    — one of the 4 valid statuses
 //   dateFrom  — ISO date string, inclusive (e.g. 2025-01-01)
 //   dateTo    — ISO date string, inclusive (e.g. 2025-12-31)
 app.get('/api/invoices', async (req, res) => {
@@ -262,14 +280,13 @@ app.get('/api/invoices', async (req, res) => {
 
     const { status, dateFrom, dateTo } = req.query;
 
-    if (status && ['Processed', 'Pending', 'Postponed'].includes(status)) {
+    if (status && VALID_STATUSES.includes(status)) {
       query = query.eq('status', status);
     }
     if (dateFrom) {
       query = query.gte('created_at', new Date(dateFrom).toISOString());
     }
     if (dateTo) {
-      // include the full day by going to end-of-day
       const end = new Date(dateTo);
       end.setHours(23, 59, 59, 999);
       query = query.lte('created_at', end.toISOString());
@@ -312,9 +329,7 @@ app.post('/api/invoices', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'مبلغ الفاتورة مطلوب' });
     if (!status)
       return res.status(400).json({ error: 'حالة الفاتورة مطلوبة' });
-
-    const VALID = ['Processed', 'Pending', 'Postponed'];
-    if (!VALID.includes(status))
+    if (!VALID_STATUSES.includes(status))
       return res.status(400).json({ error: 'قيمة الحالة غير صحيحة' });
 
     let image_path = null;
@@ -323,13 +338,19 @@ app.post('/api/invoices', upload.single('image'), async (req, res) => {
       image_path  = saved.url;
     }
 
-    const finalReason = (status === 'Pending' || status === 'Postponed')
-      ? (reason?.trim() || null) : null;
+    // Reason is required only for PartialReturn and FullReturn
+    const needsReason = status === 'PartialReturn' || status === 'FullReturn';
+    const finalReason = needsReason ? (reason?.trim() || null) : null;
 
     const { data, error } = await supabase
       .from('invoices')
-      .insert({ invoice_number: invoice_number.trim(), amount: parseFloat(amount),
-                image_path, status, reason: finalReason })
+      .insert({
+        invoice_number: invoice_number.trim(),
+        amount:         parseFloat(amount),
+        image_path,
+        status,
+        reason:         finalReason,
+      })
       .select()
       .single();
 
@@ -351,20 +372,20 @@ app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
       .from('invoices').select('*').eq('id', id).single();
     if (fetchErr) return res.status(404).json({ error: 'الفاتورة غير موجودة' });
 
-    const VALID = ['Processed', 'Pending', 'Postponed'];
-    if (status && !VALID.includes(status))
+    if (status && !VALID_STATUSES.includes(status))
       return res.status(400).json({ error: 'قيمة الحالة غير صحيحة' });
 
     let image_path = current.image_path;
-
     if (req.file) {
       const saved = await uploadToSupabase(req.file.buffer, req.file.originalname);
       image_path  = saved.url;
     }
 
     const finalStatus = status || current.status;
-    const finalReason = (finalStatus === 'Pending' || finalStatus === 'Postponed')
-      ? (reason?.trim() ?? current.reason) : null;
+    const needsReason = finalStatus === 'PartialReturn' || finalStatus === 'FullReturn';
+    const finalReason = needsReason
+      ? (reason?.trim() ?? current.reason)
+      : null;
 
     const { data, error: updateErr } = await supabase
       .from('invoices')
@@ -372,7 +393,8 @@ app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
         invoice_number: invoice_number?.trim() || current.invoice_number,
         amount:         (amount !== undefined && amount !== '') ? parseFloat(amount) : current.amount,
         image_path,
-        status: finalStatus, reason: finalReason,
+        status:         finalStatus,
+        reason:         finalReason,
       })
       .eq('id', id).select().single();
 
@@ -384,8 +406,8 @@ app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
   }
 });
 
-// ── DELETE /api/invoices/:id ──────────────────────────────────
-app.delete('/api/invoices/:id', async (req, res) => {
+// ── DELETE /api/invoices/:id — MANAGER ONLY ──────────────────
+app.delete('/api/invoices/:id', requireManager, async (req, res) => {
   try {
     const { data: inv, error: fetchErr } = await supabase
       .from('invoices').select('image_path').eq('id', req.params.id).single();
