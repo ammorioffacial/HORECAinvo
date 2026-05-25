@@ -240,8 +240,9 @@ app.use('/api', requireAuth);
 //  8. PROTECTED API ROUTES
 // ════════════════════════════════════════════════════════════════
 
-// Valid status values (4 statuses)
-const VALID_STATUSES = ['Processed', 'Pending', 'PartialReturn', 'FullReturn'];
+// Valid status values (4 current + 1 legacy read-only alias)
+// 'Postponed' is a legacy value from old DB records — treated same as 'Pending'
+const VALID_STATUSES = ['Processed', 'Pending', 'PartialReturn', 'FullReturn', 'Postponed'];
 
 // ── GET /api/stats ────────────────────────────────────────────
 app.get('/api/stats', async (_req, res) => {
@@ -254,7 +255,8 @@ app.get('/api/stats', async (_req, res) => {
 
     const total         = data.length;
     const processed     = data.filter(r => r.status === 'Processed').length;
-    const pending       = data.filter(r => r.status === 'Pending').length;
+    // 'Postponed' is a legacy alias for 'Pending' — count both together
+    const pending       = data.filter(r => r.status === 'Pending' || r.status === 'Postponed').length;
     const partialReturn = data.filter(r => r.status === 'PartialReturn').length;
     const fullReturn    = data.filter(r => r.status === 'FullReturn').length;
     const totalAmount   = data.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
@@ -281,7 +283,12 @@ app.get('/api/invoices', async (req, res) => {
     const { status, dateFrom, dateTo } = req.query;
 
     if (status && VALID_STATUSES.includes(status)) {
-      query = query.eq('status', status);
+      // 'Pending' filter also returns legacy 'Postponed' rows from old DB records
+      if (status === 'Pending') {
+        query = query.in('status', ['Pending', 'Postponed']);
+      } else {
+        query = query.eq('status', status);
+      }
     }
     if (dateFrom) {
       query = query.gte('created_at', new Date(dateFrom).toISOString());
