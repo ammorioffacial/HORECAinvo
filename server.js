@@ -354,6 +354,17 @@ app.post('/api/invoices', upload.single('image'), async (req, res) => {
       image_path  = saved.url;
     }
 
+    // ── Invoice date ──────────────────────────────────────────
+    // Employees always get today's date — cannot supply a custom date.
+    // Managers may supply any date via the form field.
+    const todayISO = new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
+    let invoice_date = todayISO;
+    if (req.session.role === 'manager' && req.body.invoice_date) {
+      const supplied = req.body.invoice_date.trim();
+      // Basic ISO date validation
+      if (/^\d{4}-\d{2}-\d{2}$/.test(supplied)) invoice_date = supplied;
+    }
+
     // Reason is required only for PartialReturn and FullReturn
     const needsReason = status === 'PartialReturn' || status === 'FullReturn';
     const finalReason = needsReason ? (reason?.trim() || null) : null;
@@ -366,6 +377,7 @@ app.post('/api/invoices', upload.single('image'), async (req, res) => {
         image_path,
         status,
         reason:         finalReason,
+        invoice_date,
       })
       .select()
       .single();
@@ -403,6 +415,15 @@ app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
       ? (reason?.trim() ?? current.reason)
       : null;
 
+    // ── Invoice date (edit) ───────────────────────────────────
+    // Employees cannot change the invoice date — always keep the original.
+    // Managers may supply a new date freely.
+    let finalInvoiceDate = current.invoice_date;
+    if (req.session.role === 'manager' && req.body.invoice_date) {
+      const supplied = req.body.invoice_date.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(supplied)) finalInvoiceDate = supplied;
+    }
+
     const { data, error: updateErr } = await supabase
       .from('invoices')
       .update({
@@ -411,6 +432,7 @@ app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
         image_path,
         status:         finalStatus,
         reason:         finalReason,
+        invoice_date:   finalInvoiceDate,
       })
       .eq('id', id).select().single();
 
