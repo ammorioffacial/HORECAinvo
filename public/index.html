@@ -119,7 +119,7 @@
     .login-btn:hover{ background:#7a2229; box-shadow:0 6px 18px rgba(144,44,52,.45) }
     .login-btn:disabled{ opacity:.6; cursor:not-allowed }
 
-    /* ── Manager badge ── */
+    /* ── Role badges ── */
     .role-badge-manager {
       display:inline-flex; align-items:center; gap:0.3rem;
       background:#fdf2f3; color:#902c34; font-size:0.65rem;
@@ -242,6 +242,7 @@
       box-shadow:0 3px 10px rgba(144,44,52,.35);
     }
     #chat-send-btn:hover{ transform:scale(1.1) }
+    #chat-send-btn:disabled{ opacity:.5; cursor:not-allowed; transform:none }
     #chat-send-btn svg{ width:16px; height:16px; color:#fff }
     .chat-date-divider{
       text-align:center; font-size:.62rem; color:#9ca3af;
@@ -439,7 +440,7 @@
     ─────────────────────────────────────────────── -->
     <div x-show="page==='dashboard'" x-cloak class="fade-in p-8 flex-1">
 
-      <!-- Stat cards — 5 cards in one row -->
+      <!-- Stat cards -->
       <div class="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
 
         <!-- Total -->
@@ -450,7 +451,6 @@
               <p x-text="fmtNum(stats.total)" class="text-3xl font-bold text-gray-800"></p>
             </div>
             <div class="w-10 h-10 bg-[#fdf2f3] rounded-xl flex items-center justify-center">
-              <!-- Heroicon: document-text -->
               <svg class="w-5 h-5 text-[#902c34]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
@@ -467,7 +467,6 @@
               <p x-text="fmtNum(stats.processed)" class="text-3xl font-bold text-gray-800"></p>
             </div>
             <div class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-              <!-- Heroicon: check-circle -->
               <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
@@ -487,7 +486,6 @@
               <p x-text="fmtNum(stats.pending)" class="text-3xl font-bold text-gray-800"></p>
             </div>
             <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center">
-              <!-- Heroicon: clock -->
               <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
@@ -504,7 +502,6 @@
               <p x-text="fmtNum(stats.partialReturn)" class="text-3xl font-bold text-gray-800"></p>
             </div>
             <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
-              <!-- Heroicon: arrow-uturn-left (partial) -->
               <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/>
               </svg>
@@ -521,7 +518,6 @@
               <p x-text="fmtNum(stats.fullReturn)" class="text-3xl font-bold text-gray-800"></p>
             </div>
             <div class="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
-              <!-- Heroicon: x-circle -->
               <svg class="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
@@ -674,7 +670,6 @@
                       <span x-text="statusAr(inv.status)"></span>
                     </span>
                   </td>
-                  <!-- Clerk badge -->
                   <td class="px-5 py-4">
                     <span class="clerk-badge">
                       <svg style="width:10px;height:10px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -774,7 +769,7 @@
               <input x-model="form.invoice_number" type="text" placeholder="مثال: INV-2025-001" class="field" required />
             </div>
 
-            <!-- Invoice date — manager: editable; employee: today, locked -->
+            <!-- Invoice date -->
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-2">
                 تاريخ الفاتورة <span class="text-red-400">*</span>
@@ -786,7 +781,6 @@
                   :class="role !== 'manager' ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''"
                   class="field"
                   required />
-                <!-- Lock icon shown for employees -->
                 <div x-show="role !== 'manager'"
                   class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-300">
                   <svg style="width:15px;height:15px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -835,7 +829,7 @@
               <input type="file" x-ref="fileInput" class="hidden" accept="image/*,.pdf" @change="handleFileInput($event)" />
             </div>
 
-            <!-- Status — 4 options -->
+            <!-- Status -->
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-2">حالة الفاتورة <span class="text-red-400">*</span></label>
               <div class="relative">
@@ -854,7 +848,7 @@
               </div>
             </div>
 
-            <!-- Reason — shown only for PartialReturn or FullReturn -->
+            <!-- Reason -->
             <div x-show="form.status === 'PartialReturn' || form.status === 'FullReturn'"
               x-transition:enter="transition ease-out duration-200"
               x-transition:enter-start="opacity-0 -translate-y-2"
@@ -967,7 +961,6 @@
         </div>
       </div>
 
-      <!-- Clerk row -->
       <div class="bg-[#fdf2f3] border border-[#f5c6c9] rounded-xl p-4 flex items-center gap-3">
         <div class="w-9 h-9 rounded-full bg-white border border-[#f5c6c9] flex items-center justify-center flex-shrink-0">
           <svg class="w-4 h-4 text-[#902c34]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1052,6 +1045,7 @@
           <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold pointer-events-none">د.ع</span>
         </div>
       </div>
+
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-2">تغيير صورة الفاتورة (اختياري)</label>
         <div class="border-2 border-dashed border-gray-200 rounded-xl p-5 text-center cursor-pointer hover:border-[#902c34] hover:bg-[#fdf2f3]/30 transition-all"
@@ -1067,7 +1061,7 @@
         <input type="file" x-ref="editFileInput" class="hidden" accept="image/*,.pdf" @change="handleEditFile($event)" />
       </div>
 
-      <!-- Status — 4 options -->
+      <!-- Status -->
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-2">الحالة <span class="text-red-400">*</span></label>
         <div class="relative">
@@ -1085,7 +1079,7 @@
         </div>
       </div>
 
-      <!-- Reason — shown only for PartialReturn or FullReturn -->
+      <!-- Reason -->
       <div x-show="editModal.form.status === 'PartialReturn' || editModal.form.status === 'FullReturn'"
         x-transition:enter="transition ease-out duration-150"
         x-transition:enter-start="opacity-0 -translate-y-1"
@@ -1097,6 +1091,7 @@
       <div x-show="editModal.error" class="flex items-center gap-2 bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl border border-red-100">
         <span x-text="editModal.error"></span>
       </div>
+
       <div class="flex gap-3 pt-1">
         <button type="submit" :disabled="editModal.loading"
           class="flex-1 bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2">
@@ -1167,7 +1162,6 @@
 
 <!-- Chat window -->
 <div id="chat-window">
-  <!-- Header -->
   <div id="chat-header">
     <div id="chat-header-title">
       <div id="chat-online-dot"></div>
@@ -1180,10 +1174,8 @@
     </button>
   </div>
 
-  <!-- Messages area -->
   <div id="chat-messages"></div>
 
-  <!-- Input area -->
   <div id="chat-input-area">
     <textarea id="chat-input" placeholder="اكتب رسالة..." rows="1"
       onkeydown="chatKeydown(event)" oninput="chatAutoResize(this)"></textarea>
@@ -1202,9 +1194,9 @@
 function app() {
   return {
     // ── State ────────────────────────────────────────────────
-    page:            'login',   // 'login' | 'dashboard' | 'form'
+    page:            'login',
     clerk:           CLERK_NAME,
-    role:            '',        // 'manager' | 'employee'
+    role:            '',
     sessionUsername: '',
     today: (function() {
       const d = new Date();
@@ -1279,10 +1271,10 @@ function app() {
     // ── Modals ────────────────────────────────────────────────
     viewModal:   { open:false, inv:null },
     editModal:   { open:false, inv:null, loading:false, error:'',
-                   form:{ invoice_number:'', amount:'', status:'', reason:'', newImageFile:null, newImagePreview:null, newImageName:'' } },
+                   form:{ invoice_number:'', amount:'', status:'', reason:'', invoice_date:'', newImageFile:null, newImagePreview:null, newImageName:'' } },
     deleteModal: { open:false, inv:null, loading:false },
 
-    // ── Init — check existing session on page load ────────────
+    // ── Init ─────────────────────────────────────────────────
     async init() {
       try {
         const res = await fetch('/api/me', { credentials: 'include' });
@@ -1318,7 +1310,7 @@ function app() {
       } catch(e) { console.error('loadData:', e); }
     },
 
-    // ── Filtered invoices (client-side search by invoice number) ─
+    // ── Filtered invoices (client-side search) ────────────────
     get filteredInvoices() {
       const q = this.filters.search.trim().toLowerCase();
       if (!q) return this.invoices;
@@ -1335,7 +1327,6 @@ function app() {
 
     // ── Create form helpers ───────────────────────────────────
     resetForm() {
-      // Default invoice_date to today in YYYY-MM-DD format
       const todayVal = new Date().toISOString().slice(0, 10);
       this.form = { invoice_number:'', amount:'', status:'', reason:'', invoice_date: todayVal, imageFile:null, imagePreview:null, imageName:null };
       this.formError = ''; this.formSuccess = false; this.loading = false;
@@ -1373,15 +1364,12 @@ function app() {
         fd.append('amount', this.form.amount);
         fd.append('status', this.form.status);
         fd.append('reason', this.form.reason.trim());
-        // Only send invoice_date if manager — server ignores it for employees anyway,
-        // but we only include it when the manager actually has the field enabled.
         if (this.role === 'manager') fd.append('invoice_date', this.form.invoice_date);
         if(this.form.imageFile) fd.append('image', this.form.imageFile);
 
         const r = await fetch('/api/invoices', { method:'POST', credentials:'include', body:fd });
         const d = await r.json();
         if(!r.ok) {
-          // Specific duplicate-invoice error from server
           if(d.error === 'duplicate_invoice')
             throw new Error('عذراً، رقم الفاتورة مسجل مسبقاً!');
           throw new Error(d.error || 'فشل الحفظ');
@@ -1404,7 +1392,6 @@ function app() {
     // ── Edit ──────────────────────────────────────────────────
     openEdit(inv) {
       this.editModal.inv = inv; this.editModal.error = '';
-      // invoice_date: use stored value if present, else today
       const existingDate = inv.invoice_date
         ? inv.invoice_date.slice(0, 10)
         : new Date().toISOString().slice(0, 10);
@@ -1434,7 +1421,6 @@ function app() {
         fd.append('amount', this.editModal.form.amount);
         fd.append('status', this.editModal.form.status);
         fd.append('reason', this.editModal.form.reason?.trim() || '');
-        // Only managers can change the date; server enforces this too
         if (this.role === 'manager') fd.append('invoice_date', this.editModal.form.invoice_date);
         if(this.editModal.form.newImageFile) fd.append('image', this.editModal.form.newImageFile);
 
@@ -1468,19 +1454,13 @@ function app() {
     },
 
     // ── Helpers ───────────────────────────────────────────────
-
-    // English-digit formatted currency
     iqd(v) {
       if(v === undefined || v === null) return '0 د.ع';
       return Number(v).toLocaleString('en-US') + ' د.ع';
     },
-
-    // Plain English-digit integer
     fmtNum(v) {
       return String(Number(v ?? 0));
     },
-
-    // Date formatted with English digits, Arabic month names
     fmtDate(dt) {
       if(!dt) return '—';
       const d = new Date(dt);
@@ -1490,37 +1470,30 @@ function app() {
       const mm = String(d.getMinutes()).padStart(2,'0');
       return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}، ${hh}:${mm}`;
     },
-
-    // Invoice date (DATE column) formatted as Arabic — no time component
     fmtInvoiceDate(d) {
       if (!d) return '—';
       const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
                       'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-      // Parse YYYY-MM-DD without timezone shift
       const parts = String(d).slice(0, 10).split('-');
-      const year = parseInt(parts[0], 10);
+      const year  = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
+      const day   = parseInt(parts[2], 10);
       return `${day} ${months[month]} ${year}`;
     },
 
-    // Arabic label for each status
-    // Case-insensitive + trims whitespace — handles legacy 'Postponed' DB values
+    // Case-insensitive — handles legacy 'Postponed' DB values
     statusAr(s) {
       if (!s) return '—';
       const k = s.trim().toLowerCase();
       const map = {
         'processed':    'تم تجهيز الفاتورة',
         'pending':      'مؤجلة',
-        'postponed':    'مؤجلة',      // legacy DB value
+        'postponed':    'مؤجلة',
         'partialreturn':'راجع ضمني',
         'fullreturn':   'راجع كلي',
       };
       return map[k] || s;
     },
-
-    // Inline SVG icon for each status (Heroicons style)
-    // Case-insensitive + trims whitespace — handles legacy 'Postponed' DB values
     statusIcon(s) {
       if (!s) return '';
       const k = s.trim().toLowerCase();
@@ -1532,7 +1505,7 @@ function app() {
                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                          </svg>`,
         'pending':      clockSvg,
-        'postponed':    clockSvg,   // legacy DB value
+        'postponed':    clockSvg,
         'partialreturn':`<svg style="width:13px;height:13px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/>
                          </svg>`,
@@ -1542,16 +1515,13 @@ function app() {
       };
       return map[k] || '';
     },
-
-    // Tailwind badge class per status
-    // Case-insensitive + trims whitespace — handles legacy 'Postponed' DB values
     badgeClass(s) {
       if (!s) return 'badge-pending';
       const k = s.trim().toLowerCase();
       const map = {
         'processed':    'badge-processed',
         'pending':      'badge-pending',
-        'postponed':    'badge-pending',      // legacy DB value
+        'postponed':    'badge-pending',
         'partialreturn':'badge-partialreturn',
         'fullreturn':   'badge-fullreturn',
       };
@@ -1566,20 +1536,17 @@ function app() {
 ══════════════════════════════════════════════════ -->
 <script>
 (function () {
-  // ── State ───────────────────────────────────────────────────
-  let chatOpen      = false;
-  let lastMsgId     = 0;       // highest id we've seen — used for new-message detection
-  let unreadCount   = 0;
-  let pollTimer     = null;
-  let chatUsername  = '';       // set once Alpine populates sessionUsername
+  let chatOpen     = false;
+  let lastMsgId    = 0;
+  let unreadCount  = 0;
+  let pollTimer    = null;
+  let chatUsername = '';
 
-  const POLL_MS     = 3000;    // poll every 3 s
+  const POLL_MS = 3000;
 
-  // ── Helpers ─────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
 
   function chatGetUsername() {
-    // Pull from Alpine state — available after login
     if (chatUsername) return chatUsername;
     try {
       const alpineEl = document.querySelector('[x-data]');
@@ -1591,8 +1558,8 @@ function app() {
 
   function fmtTime(isoStr) {
     if (!isoStr) return '';
-    const d   = new Date(isoStr);
-    let h     = d.getHours(), m = d.getMinutes();
+    const d = new Date(isoStr);
+    let h = d.getHours(), m = d.getMinutes();
     const ampm = h >= 12 ? 'م' : 'ص';
     h = h % 12 || 12;
     return `${h}:${String(m).padStart(2,'0')} ${ampm}`;
@@ -1613,7 +1580,6 @@ function app() {
     return el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   }
 
-  // ── Render a single message bubble ──────────────────────────
   function buildBubble(msg, myName) {
     const isMe = msg.sender === myName;
     const wrap = document.createElement('div');
@@ -1638,7 +1604,6 @@ function app() {
     return wrap;
   }
 
-  // ── Full render (initial load) ───────────────────────────────
   function renderAll(messages) {
     const container = $('chat-messages');
     container.innerHTML = '';
@@ -1673,7 +1638,6 @@ function app() {
     if (messages.length) lastMsgId = messages[messages.length - 1].id;
   }
 
-  // ── Append only new messages (poll updates) ─────────────────
   function appendNew(messages) {
     const newer = messages.filter(m => m.id > lastMsgId);
     if (!newer.length) return;
@@ -1682,21 +1646,14 @@ function app() {
     const myName      = chatGetUsername();
     const wasAtBottom = isAtBottom(container);
 
-    // Remove empty-state placeholder if present
     const empty = container.querySelector('.chat-empty');
     if (empty) container.innerHTML = '';
 
     let lastDateLabel = '';
-    // Infer last date label from last existing bubble
-    const lastBubble = container.querySelector('.chat-msg-wrap:last-of-type');
-    if (lastBubble) {
-      // not critical — skip duplicate divider detection for simplicity
-    }
 
     newer.forEach(msg => {
       const label = fmtDateLabel(msg.created_at);
       if (label !== lastDateLabel) {
-        // Only add divider if the date actually changed from existing messages
         const existingDividers = [...container.querySelectorAll('.chat-date-divider')];
         const alreadyHas = existingDividers.some(d => d.textContent === label);
         if (!alreadyHas) {
@@ -1714,7 +1671,6 @@ function app() {
 
     if (wasAtBottom) container.scrollTop = container.scrollHeight;
 
-    // Notify if chat is closed and message is from someone else
     const myName2 = chatGetUsername();
     const foreign = newer.filter(m => m.sender !== myName2);
     if (foreign.length && !chatOpen) {
@@ -1724,7 +1680,6 @@ function app() {
     }
   }
 
-  // ── Badge ────────────────────────────────────────────────────
   function showBadge() {
     const badge = $('chat-badge');
     badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
@@ -1736,7 +1691,6 @@ function app() {
     $('chat-badge').style.display = 'none';
   }
 
-  // ── Desktop notifications ────────────────────────────────────
   function requestNotifPermission() {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
@@ -1750,11 +1704,10 @@ function app() {
     new Notification(`رسالة من ${msg.sender}`, {
       body: msg.message.length > 80 ? msg.message.slice(0, 80) + '…' : msg.message,
       icon: '/logoen.png',
-      tag:  'chat-msg',   // collapses multiple notifications into one
+      tag:  'chat-msg',
     });
   }
 
-  // ── Fetch ────────────────────────────────────────────────────
   async function fetchMessages(isInitial = false) {
     try {
       const res = await fetch('/api/chat', { credentials: 'include' });
@@ -1770,7 +1723,6 @@ function app() {
     } catch (_) { /* network hiccup — silent */ }
   }
 
-  // ── Polling ──────────────────────────────────────────────────
   function startPolling() {
     if (pollTimer) return;
     pollTimer = setInterval(() => fetchMessages(false), POLL_MS);
@@ -1781,7 +1733,6 @@ function app() {
     pollTimer = null;
   }
 
-  // ── Toggle open/close ────────────────────────────────────────
   window.chatToggle = function () {
     chatOpen = !chatOpen;
     const win = $('chat-window');
@@ -1789,7 +1740,7 @@ function app() {
       win.classList.add('open');
       clearBadge();
       requestNotifPermission();
-      fetchMessages(true);   // fresh full load
+      fetchMessages(true);
       startPolling();
       setTimeout(() => {
         const container = $('chat-messages');
@@ -1802,12 +1753,16 @@ function app() {
     }
   };
 
-  // ── Send ─────────────────────────────────────────────────────
+  // ── Send (with full error handling) ─────────────────────────
   window.chatSend = async function () {
     const input = $('chat-input');
     const text  = input.value.trim();
     if (!text) return;
 
+    const btn = $('chat-send-btn');
+    btn.disabled = true;
+
+    // Clear optimistically — restore on failure
     input.value = '';
     chatAutoResize(input);
 
@@ -1818,16 +1773,35 @@ function app() {
         credentials: 'include',
         body:        JSON.stringify({ message: text }),
       });
-      if (res.ok) {
-        // Immediately fetch so the sent message appears at once
-        await fetchMessages(false);
-        const container = $('chat-messages');
-        container.scrollTop = container.scrollHeight;
+
+      if (!res.ok) {
+        let errMsg = 'فشل إرسال الرسالة';
+        try {
+          const d = await res.json();
+          if (d && d.error) errMsg = d.error;
+        } catch (_) {}
+        input.value = text;
+        chatAutoResize(input);
+        alert('خطأ: ' + errMsg + ' (كود: ' + res.status + ')');
+        return;
       }
-    } catch (_) {}
+
+      // Success — append and scroll
+      await fetchMessages(false);
+      const container = $('chat-messages');
+      container.scrollTop = container.scrollHeight;
+
+    } catch (err) {
+      // Network failure
+      input.value = text;
+      chatAutoResize(input);
+      alert('خطأ في الاتصال: ' + (err.message || 'تعذّر الوصول إلى الخادم'));
+    } finally {
+      btn.disabled = false;
+      input.focus();
+    }
   };
 
-  // ── Keyboard: Enter sends, Shift+Enter = newline ─────────────
   window.chatKeydown = function (e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -1835,19 +1809,14 @@ function app() {
     }
   };
 
-  // ── Auto-resize textarea ─────────────────────────────────────
   window.chatAutoResize = function (el) {
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 90) + 'px';
   };
 
-  // ── Boot: start background polling even when chat is closed
-  //    so the badge lights up without opening the chat ─────────
+  // Start background polling after Alpine boots
   document.addEventListener('DOMContentLoaded', () => {
-    // Wait briefly for Alpine to set sessionUsername, then start polling
-    setTimeout(() => {
-      startPolling();
-    }, 2000);
+    setTimeout(() => { startPolling(); }, 2000);
   });
 })();
 </script>
