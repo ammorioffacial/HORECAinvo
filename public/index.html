@@ -145,7 +145,7 @@
       width:54px; height:54px; border-radius:50%;
       background:linear-gradient(135deg,#902c34,#7a2229);
       box-shadow:0 6px 22px rgba(144,44,52,.45);
-      border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
+      border:none; cursor:pointer; display:none; align-items:center; justify-content:center;
       transition:transform .2s, box-shadow .2s;
     }
     #chat-fab:hover{ transform:scale(1.1); box-shadow:0 8px 28px rgba(144,44,52,.55) }
@@ -1232,6 +1232,7 @@ function app() {
           this.sessionUsername = this.loginForm.username.trim();
           this.loginForm       = { username:'', password:'', error:'', loading:false };
           this.page            = 'dashboard';
+          document.getElementById('chat-fab').style.display = 'flex';
           await this.loadData();
         } else {
           this.loginForm.error = data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة';
@@ -1253,6 +1254,11 @@ function app() {
       this.invoices        = [];
       this.stats           = { total:0, processed:0, pending:0, partialReturn:0, fullReturn:0, totalAmount:0 };
       this.page            = 'login';
+      // Hide chat widget and close window on logout
+      const fab = document.getElementById('chat-fab');
+      const win = document.getElementById('chat-window');
+      if (fab) fab.style.display = 'none';
+      if (win) win.classList.remove('open');
     },
 
     // ── Data ──────────────────────────────────────────────────
@@ -1284,6 +1290,7 @@ function app() {
             this.role            = data.role;
             this.sessionUsername = data.username;
             this.page            = 'dashboard';
+            document.getElementById('chat-fab').style.display = 'flex';
             await this.loadData();
             return;
           }
