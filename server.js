@@ -23,6 +23,8 @@ const REQUIRED_ENV = [
   'MANAGER_PASSWORD',
   'DANIEL_USERNAME',
   'DANIEL_PASSWORD',
+  'VIEWER_USERNAME',
+  'VIEWER_PASSWORD',
   'SESSION_SECRET',
 ];
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
@@ -177,6 +179,8 @@ app.post('/api/login', (req, res) => {
   const managerPass = (process.env.MANAGER_PASSWORD || '').trim();
   const danielUser  = (process.env.DANIEL_USERNAME  || '').trim();
   const danielPass  = (process.env.DANIEL_PASSWORD  || '').trim();
+  const viewerUser  = (process.env.VIEWER_USERNAME  || '').trim();
+  const viewerPass  = (process.env.VIEWER_PASSWORD  || '').trim();
 
   let role = null;
 
@@ -184,6 +188,8 @@ app.post('/api/login', (req, res) => {
     role = 'manager';
   } else if (submittedUser === danielUser && submittedPass === danielPass) {
     role = 'employee';
+  } else if (submittedUser === viewerUser && submittedPass === viewerPass) {
+    role = 'viewer';
   }
 
   if (role) {
@@ -227,11 +233,19 @@ function requireAuth(req, res, next) {
   res.status(401).json({ error: 'غير مصرح. يرجى تسجيل الدخول أولاً.' });
 }
 
-// Only-manager guard — rejects employees with 403
+// Only-manager guard — rejects non-managers with 403
 function requireManager(req, res, next) {
   if (req.session.role === 'manager') return next();
-  console.warn(`🚫  Employee "${req.session.username}" attempted a manager-only action.`);
+  console.warn(`🚫  User "${req.session.username}" (${req.session.role}) attempted a manager-only action.`);
   res.status(403).json({ error: 'هذا الإجراء مخصص للمدير فقط.' });
+}
+
+// Writer guard — rejects viewers (read-only role) with 403
+// Allows both 'manager' and 'employee' roles to write.
+function requireWriter(req, res, next) {
+  if (req.session.role === 'manager' || req.session.role === 'employee') return next();
+  console.warn(`🚫  Viewer "${req.session.username}" attempted a write action.`);
+  res.status(403).json({ error: 'حساب العرض للقراءة فقط. لا يمكن إجراء تعديلات.' });
 }
 
 app.use('/api', requireAuth);
@@ -326,7 +340,7 @@ app.get('/api/invoices/:id', async (req, res) => {
 });
 
 // ── POST /api/invoices — CREATE ───────────────────────────────
-app.post('/api/invoices', upload.single('image'), async (req, res) => {
+app.post('/api/invoices', requireWriter, upload.single('image'), async (req, res) => {
   try {
     const { invoice_number, amount, status, reason } = req.body;
 
@@ -391,7 +405,7 @@ app.post('/api/invoices', upload.single('image'), async (req, res) => {
 });
 
 // ── PUT /api/invoices/:id — UPDATE ───────────────────────────
-app.put('/api/invoices/:id', upload.single('image'), async (req, res) => {
+app.put('/api/invoices/:id', requireWriter, upload.single('image'), async (req, res) => {
   try {
     const id = req.params.id;
     const { invoice_number, amount, status, reason } = req.body;
