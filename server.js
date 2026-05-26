@@ -254,9 +254,18 @@ app.use('/api', requireAuth);
 //  8. PROTECTED API ROUTES
 // ════════════════════════════════════════════════════════════════
 
-// Valid status values (4 current + 1 legacy read-only alias)
+// Valid status values — 8 total (5 original + 3 new delivery statuses)
 // 'Postponed' is a legacy value from old DB records — treated same as 'Pending'
-const VALID_STATUSES = ['Processed', 'Pending', 'PartialReturn', 'FullReturn', 'Postponed'];
+const VALID_STATUSES = [
+  'Processed',
+  'Pending',
+  'PartialReturn',
+  'FullReturn',
+  'Postponed',
+  'UnderPreparation',
+  'OutForDelivery',
+  'Delivered',
+];
 
 // ── GET /api/stats ────────────────────────────────────────────
 app.get('/api/stats', async (_req, res) => {
@@ -284,7 +293,7 @@ app.get('/api/stats', async (_req, res) => {
 
 // ── GET /api/invoices ─────────────────────────────────────────
 // Optional query params:
-//   status    — one of the 4 valid statuses
+//   status    — one of the valid statuses
 //   dateFrom  — ISO date string, inclusive (e.g. 2025-01-01)
 //   dateTo    — ISO date string, inclusive (e.g. 2025-12-31)
 app.get('/api/invoices', async (req, res) => {
@@ -342,7 +351,7 @@ app.get('/api/invoices/:id', async (req, res) => {
 // ── POST /api/invoices — CREATE ───────────────────────────────
 app.post('/api/invoices', requireWriter, upload.single('image'), async (req, res) => {
   try {
-    const { invoice_number, amount, status, reason } = req.body;
+    const { invoice_number, amount, status, reason, driver_name, eta } = req.body;
 
     if (!invoice_number?.trim())
       return res.status(400).json({ error: 'رقم الفاتورة مطلوب' });
@@ -383,6 +392,10 @@ app.post('/api/invoices', requireWriter, upload.single('image'), async (req, res
     const needsReason = status === 'PartialReturn' || status === 'FullReturn';
     const finalReason = needsReason ? (reason?.trim() || null) : null;
 
+    // Delivery fields — only relevant for delivery statuses but accepted for all
+    const finalDriverName = driver_name?.trim() || null;
+    const finalEta        = eta?.trim() || null;
+
     const { data, error } = await supabase
       .from('invoices')
       .insert({
@@ -392,6 +405,8 @@ app.post('/api/invoices', requireWriter, upload.single('image'), async (req, res
         status,
         reason:         finalReason,
         invoice_date,
+        driver_name:    finalDriverName,
+        eta:            finalEta,
       })
       .select()
       .single();
@@ -408,7 +423,7 @@ app.post('/api/invoices', requireWriter, upload.single('image'), async (req, res
 app.put('/api/invoices/:id', requireWriter, upload.single('image'), async (req, res) => {
   try {
     const id = req.params.id;
-    const { invoice_number, amount, status, reason } = req.body;
+    const { invoice_number, amount, status, reason, driver_name, eta } = req.body;
 
     const { data: current, error: fetchErr } = await supabase
       .from('invoices').select('*').eq('id', id).single();
@@ -438,6 +453,14 @@ app.put('/api/invoices/:id', requireWriter, upload.single('image'), async (req, 
       if (/^\d{4}-\d{2}-\d{2}$/.test(supplied)) finalInvoiceDate = supplied;
     }
 
+    // Delivery fields — keep existing value if not supplied in this request
+    const finalDriverName = driver_name !== undefined
+      ? (driver_name.trim() || null)
+      : current.driver_name;
+    const finalEta = eta !== undefined
+      ? (eta.trim() || null)
+      : current.eta;
+
     const { data, error: updateErr } = await supabase
       .from('invoices')
       .update({
@@ -447,6 +470,8 @@ app.put('/api/invoices/:id', requireWriter, upload.single('image'), async (req, 
         status:         finalStatus,
         reason:         finalReason,
         invoice_date:   finalInvoiceDate,
+        driver_name:    finalDriverName,
+        eta:            finalEta,
       })
       .eq('id', id).select().single();
 
