@@ -264,6 +264,113 @@
     }
     .chat-empty svg{ width:40px; height:40px }
     .chat-empty p{ font-size:.8rem }
+
+    /* ══ Print Styles ═════════════════════════════════════════ */
+    @media print {
+      /* Hide everything except the dashboard table card */
+      body { background: #fff !important; }
+      #print-header { display: block !important; }
+      .no-print,
+      aside,
+      header,
+      #chat-fab,
+      #chat-window,
+      .filter-bar,
+      [x-show="page==='login'"],
+      [x-show="page==='form'"],
+      .stat-cards-section,
+      .modal-bg { display: none !important; }
+
+      /* Show only the main content area */
+      main { margin: 0 !important; padding: 0 !important; }
+      .print-area { display: block !important; }
+
+      /* Page setup */
+      @page {
+        size: A4 landscape;
+        margin: 15mm 12mm;
+      }
+
+      /* Print header */
+      #print-header {
+        text-align: center;
+        margin-bottom: 18px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #902c34;
+        direction: rtl;
+      }
+      #print-header .print-logo-placeholder {
+        width: 80px; height: 60px;
+        border: 2px dashed #ccc;
+        margin: 0 auto 8px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 10px; color: #999;
+        border-radius: 6px;
+      }
+      #print-header h1 {
+        font-size: 20px; font-weight: 800;
+        color: #902c34; margin: 4px 0;
+      }
+      #print-header p {
+        font-size: 11px; color: #555; margin: 2px 0;
+      }
+
+      /* Table */
+      table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 11px !important;
+        direction: rtl !important;
+      }
+      thead tr {
+        background: #902c34 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      thead th {
+        color: #fff !important;
+        font-weight: 700 !important;
+        padding: 7px 8px !important;
+        border: 1px solid #7a2229 !important;
+        text-align: right !important;
+        font-size: 10px !important;
+      }
+      tbody td {
+        padding: 6px 8px !important;
+        border: 1px solid #ddd !important;
+        color: #222 !important;
+        text-align: right !important;
+        vertical-align: top !important;
+      }
+      tbody tr:nth-child(even) {
+        background: #f9f9f9 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      /* Hide action column when printing */
+      th:last-child, td:last-child { display: none !important; }
+      /* Hide SVG icons inside badges for cleaner print */
+      td .flex-shrink-0 { display: none !important; }
+      /* Keep badge text readable */
+      td span[class*="badge-"] {
+        border: 1px solid #ccc !important;
+        background: transparent !important;
+        color: #333 !important;
+        padding: 1px 4px !important;
+      }
+      /* Footer row */
+      .print-footer-row td {
+        font-weight: 700 !important;
+        border-top: 2px solid #902c34 !important;
+        background: #fdf2f3 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      /* Hide non-table elements inside dashboard */
+      .bg-white.rounded-2xl.shadow-sm.px-6.py-4.mb-5 { display: none !important; }
+      .px-6.py-4.border-b { display: none !important; }
+      .px-6.py-3.border-t { display: none !important; }
+    }
   </style>
 </head>
 
@@ -274,9 +381,18 @@
 <body x-data="app()" x-init="init()">
 
 <!-- ══════════════════════════════════════════════════
+     PRINT HEADER (hidden on screen, visible on print)
+══════════════════════════════════════════════════ -->
+<div id="print-header" style="display:none" dir="rtl">
+  <div class="print-logo-placeholder">لوغو الشركة</div>
+  <h1>تقرير الفواتير المسجلة</h1>
+  <p id="print-date-line">تاريخ إنشاء التقرير: —</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════
      PAGE: LOGIN
 ══════════════════════════════════════════════════ -->
-<div x-show="page==='login'" x-cloak
+<div x-show="page==='login'" x-cloak class="no-print"
   class="min-h-screen flex items-center justify-center bg-[#f3f4f8] p-4">
   <div class="slide-up bg-white rounded-3xl shadow-xl w-full max-w-sm overflow-hidden">
 
@@ -444,7 +560,7 @@
     <div x-show="page==='dashboard'" x-cloak class="fade-in p-8 flex-1">
 
       <!-- Stat cards -->
-      <div class="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+      <div class="no-print grid grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
 
         <!-- Total -->
         <div class="stat-card sc-total bg-white rounded-2xl p-5 shadow-sm">
@@ -531,7 +647,7 @@
       </div>
 
       <!-- ── Filter bar ──────────────────────────────────── -->
-      <div class="bg-white rounded-2xl shadow-sm px-6 py-4 mb-5 flex flex-wrap items-end gap-4">
+      <div class="no-print bg-white rounded-2xl shadow-sm px-6 py-4 mb-5 flex flex-wrap items-end gap-4">
 
         <!-- Date From -->
         <div class="flex flex-col gap-1 min-w-[150px]">
@@ -618,18 +734,40 @@
 
       <!-- Table card -->
       <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div class="no-print px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
           <div>
             <h2 class="font-semibold text-gray-800">الفواتير المسجلة</h2>
             <p class="text-xs text-gray-400 mt-0.5">اضغط على أيقونة العرض لمشاهدة صورة الفاتورة</p>
           </div>
-          <button @click="loadData()"
-            class="flex items-center gap-2 text-xs text-[#902c34] hover:text-[#7a2229] bg-[#fdf2f3] hover:bg-[#fae5e6] px-3 py-2 rounded-lg transition-colors">
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            تحديث
-          </button>
+          <div class="flex items-center gap-2 flex-wrap">
+
+            <!-- Export to Excel -->
+            <button @click="exportExcel()"
+              class="flex items-center gap-1.5 text-xs text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-2 rounded-lg transition-colors font-semibold">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              تصدير إلى إكسل
+            </button>
+
+            <!-- Print Report -->
+            <button @click="printReport()"
+              class="flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-2 rounded-lg transition-colors font-semibold">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+              </svg>
+              طباعة التقارير
+            </button>
+
+            <!-- Refresh -->
+            <button @click="loadData()"
+              class="flex items-center gap-2 text-xs text-[#902c34] hover:text-[#7a2229] bg-[#fdf2f3] hover:bg-[#fae5e6] px-3 py-2 rounded-lg transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              تحديث
+            </button>
+          </div>
         </div>
 
         <!-- Empty state -->
@@ -773,7 +911,7 @@
           </table>
         </div>
 
-        <div x-show="filteredInvoices.length > 0" class="px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
+        <div x-show="filteredInvoices.length > 0" class="no-print px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
           <p class="text-xs text-gray-400">
             إجمالي السجلات:
             <span x-text="fmtNum(filteredInvoices.length)" class="font-semibold text-gray-600"></span>
@@ -1723,6 +1861,116 @@ function app() {
         'delivered':        'badge-delivered',
       };
       return map[k] || 'badge-pending';
+    },
+
+    // ── Print Report ──────────────────────────────────────────
+    printReport() {
+      // Fill in the live date/time before printing
+      const now = new Date();
+      const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
+                      'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+      const days   = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+      const hh = String(now.getHours()).padStart(2,'0');
+      const mm = String(now.getMinutes()).padStart(2,'0');
+      const dateStr = `${days[now.getDay()]}، ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}  ${hh}:${mm}`;
+      document.getElementById('print-date-line').textContent = 'تاريخ إنشاء التقرير: ' + dateStr;
+
+      // Add filter context line if any filter is active
+      const filterParts = [];
+      if (this.filters.status)   filterParts.push('الحالة: ' + this.statusAr(this.filters.status));
+      if (this.filters.dateFrom) filterParts.push('من: ' + this.filters.dateFrom);
+      if (this.filters.dateTo)   filterParts.push('إلى: ' + this.filters.dateTo);
+      if (this.filters.quickDate) {
+        filterParts.push('الفترة: ' + (this.filters.quickDate === 'today' ? 'اليوم' : 'آخر 7 أيام'));
+      }
+      if (this.filters.search)   filterParts.push('بحث: ' + this.filters.search);
+
+      let filterLine = document.getElementById('print-filter-line');
+      if (!filterLine) {
+        filterLine = document.createElement('p');
+        filterLine.id = 'print-filter-line';
+        document.getElementById('print-header').appendChild(filterLine);
+      }
+      filterLine.textContent = filterParts.length ? 'الفلاتر المطبّقة: ' + filterParts.join(' | ') : '';
+      filterLine.style.cssText = 'font-size:10px;color:#888;margin-top:3px';
+
+      // Add total count
+      let countLine = document.getElementById('print-count-line');
+      if (!countLine) {
+        countLine = document.createElement('p');
+        countLine.id = 'print-count-line';
+        document.getElementById('print-header').appendChild(countLine);
+      }
+      countLine.textContent = 'إجمالي السجلات المعروضة: ' + this.filteredInvoices.length;
+      countLine.style.cssText = 'font-size:11px;font-weight:700;color:#902c34;margin-top:4px';
+
+      window.print();
+    },
+
+    // ── Export to Excel (CSV with UTF-8 BOM) ──────────────────
+    exportExcel() {
+      const list = this.filteredInvoices;
+      if (!list.length) {
+        alert('لا توجد بيانات للتصدير.');
+        return;
+      }
+
+      // Column headers
+      const headers = [
+        '#',
+        'رقم الفاتورة',
+        'المبلغ (د.ع)',
+        'الحالة',
+        'السبب',
+        'اسم السائق',
+        'وقت الوصول (ETA)',
+        'تاريخ الفاتورة',
+        'تاريخ الإدخال',
+      ];
+
+      const escape = v => {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        // Wrap in quotes if it contains comma, newline, or double-quote
+        if (s.includes(',') || s.includes('\n') || s.includes('"')) {
+          return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+      };
+
+      const rows = list.map(inv => [
+        escape(inv.id),
+        escape(inv.invoice_number),
+        escape(Number(inv.amount).toLocaleString('en-US')),
+        escape(this.statusAr(inv.status)),
+        escape(inv.reason || ''),
+        escape(inv.driver_name || ''),
+        escape(inv.eta || ''),
+        escape(this.fmtInvoiceDate(inv.invoice_date)),
+        escape(this.fmtDate(inv.created_at)),
+      ]);
+
+      const csvContent = [
+        headers.map(escape).join(','),
+        ...rows.map(r => r.join(',')),
+      ].join('\r\n');
+
+      // UTF-8 BOM so Excel opens Arabic correctly
+      const bom = '﻿';
+      const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url  = URL.createObjectURL(blob);
+
+      const now = new Date();
+      const stamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+      const filename = `فواتير-${stamp}.csv`;
+
+      const a = document.createElement('a');
+      a.href     = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     },
   };
 }
