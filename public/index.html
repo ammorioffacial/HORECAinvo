@@ -138,6 +138,128 @@
       font-weight:700; padding:0.15rem 0.5rem; border-radius:0.4rem;
       border:1px solid #bbf7d0;
     }
+
+    /* ══ Chat Widget ══════════════════════════════════════════ */
+    #chat-fab {
+      position:fixed; bottom:1.75rem; left:1.75rem; z-index:9000;
+      width:54px; height:54px; border-radius:50%;
+      background:linear-gradient(135deg,#902c34,#7a2229);
+      box-shadow:0 6px 22px rgba(144,44,52,.45);
+      border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
+      transition:transform .2s, box-shadow .2s;
+    }
+    #chat-fab:hover{ transform:scale(1.1); box-shadow:0 8px 28px rgba(144,44,52,.55) }
+    #chat-fab svg{ width:26px; height:26px; color:#fff }
+    #chat-badge{
+      position:absolute; top:-3px; right:-3px;
+      width:18px; height:18px; border-radius:50%;
+      background:#ef4444; border:2px solid #fff;
+      font-size:10px; font-weight:800; color:#fff;
+      display:none; align-items:center; justify-content:center;
+    }
+    #chat-window{
+      position:fixed; bottom:5.5rem; left:1.75rem; z-index:9000;
+      width:360px; height:520px; background:#fff;
+      border-radius:1.25rem; box-shadow:0 20px 60px rgba(0,0,0,.18);
+      display:none; flex-direction:column; overflow:hidden;
+      animation:slideUp .22s ease-out;
+    }
+    #chat-window.open{ display:flex }
+    #chat-header{
+      background:linear-gradient(135deg,#902c34,#7a2229);
+      padding:.9rem 1.1rem; display:flex; align-items:center;
+      justify-content:space-between; flex-shrink:0;
+    }
+    #chat-header-title{
+      display:flex; align-items:center; gap:.6rem;
+    }
+    #chat-header-title span{
+      color:#fff; font-weight:700; font-size:.95rem;
+    }
+    #chat-online-dot{
+      width:8px; height:8px; border-radius:50%;
+      background:#4ade80; border:1.5px solid rgba(255,255,255,.6);
+      flex-shrink:0;
+    }
+    #chat-close-btn{
+      background:rgba(255,255,255,.18); border:none; cursor:pointer;
+      width:28px; height:28px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      transition:background .15s;
+    }
+    #chat-close-btn:hover{ background:rgba(255,255,255,.32) }
+    #chat-close-btn svg{ width:14px; height:14px; color:#fff }
+    #chat-messages{
+      flex:1; overflow-y:auto; padding:.9rem 1rem;
+      display:flex; flex-direction:column; gap:.55rem;
+      background:#f8f9fb;
+    }
+    #chat-messages::-webkit-scrollbar{ width:4px }
+    #chat-messages::-webkit-scrollbar-thumb{ background:#ddd; border-radius:99px }
+    .chat-msg-wrap{ display:flex; flex-direction:column; max-width:78%; }
+    .chat-msg-wrap.me{ align-self:flex-end; align-items:flex-end }
+    .chat-msg-wrap.them{ align-self:flex-start; align-items:flex-start }
+    .chat-sender{
+      font-size:.65rem; font-weight:700; margin-bottom:.18rem;
+      color:#6b7280; padding:0 .35rem;
+    }
+    .chat-bubble{
+      padding:.55rem .8rem; border-radius:1.1rem;
+      font-size:.82rem; line-height:1.45; word-break:break-word;
+    }
+    .chat-msg-wrap.me .chat-bubble{
+      background:linear-gradient(135deg,#902c34,#7a2229);
+      color:#fff; border-bottom-right-radius:.3rem;
+    }
+    .chat-msg-wrap.them .chat-bubble{
+      background:#fff; color:#1f2937;
+      border:1px solid #e5e7eb; border-bottom-left-radius:.3rem;
+      box-shadow:0 1px 3px rgba(0,0,0,.06);
+    }
+    .chat-time{
+      font-size:.6rem; color:#9ca3af; margin-top:.18rem; padding:0 .35rem;
+    }
+    .chat-msg-wrap.me .chat-time{ color:rgba(144,44,52,.6) }
+    #chat-input-area{
+      padding:.7rem .9rem; background:#fff;
+      border-top:1px solid #f0f0f0; display:flex; gap:.5rem;
+      align-items:flex-end; flex-shrink:0;
+    }
+    #chat-input{
+      flex:1; border:1.5px solid #e5e7eb; border-radius:.85rem;
+      padding:.55rem .85rem; font-size:.85rem; font-family:'Cairo',sans-serif;
+      resize:none; max-height:90px; min-height:38px; outline:none;
+      transition:border-color .2s; line-height:1.4; background:#fafafa;
+      color:#1f2937;
+    }
+    #chat-input:focus{ border-color:#902c34; background:#fff }
+    #chat-input::placeholder{ color:#d1d5db }
+    #chat-send-btn{
+      width:38px; height:38px; border-radius:50%; flex-shrink:0;
+      background:linear-gradient(135deg,#902c34,#7a2229);
+      border:none; cursor:pointer; display:flex; align-items:center;
+      justify-content:center; transition:transform .15s, box-shadow .15s;
+      box-shadow:0 3px 10px rgba(144,44,52,.35);
+    }
+    #chat-send-btn:hover{ transform:scale(1.1) }
+    #chat-send-btn svg{ width:16px; height:16px; color:#fff }
+    .chat-date-divider{
+      text-align:center; font-size:.62rem; color:#9ca3af;
+      margin:.3rem 0; position:relative;
+    }
+    .chat-date-divider::before,.chat-date-divider::after{
+      content:''; position:absolute; top:50%;
+      width:35%; height:1px; background:#e5e7eb;
+    }
+    .chat-date-divider::before{ right:0 }
+    .chat-date-divider::after{ left:0 }
+    .chat-empty{
+      flex:1; display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      color:#d1d5db; gap:.5rem;
+    }
+    .chat-empty svg{ width:40px; height:40px }
+    .chat-empty p{ font-size:.8rem }
   </style>
 </head>
 
@@ -1031,6 +1153,49 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════
+     CHAT WIDGET
+══════════════════════════════════════════════════ -->
+
+<!-- Floating action button -->
+<button id="chat-fab" title="المحادثة الداخلية" onclick="chatToggle()">
+  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+    <path stroke-linecap="round" stroke-linejoin="round"
+      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+  </svg>
+  <div id="chat-badge"></div>
+</button>
+
+<!-- Chat window -->
+<div id="chat-window">
+  <!-- Header -->
+  <div id="chat-header">
+    <div id="chat-header-title">
+      <div id="chat-online-dot"></div>
+      <span>المحادثة الداخلية</span>
+    </div>
+    <button id="chat-close-btn" onclick="chatToggle()">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Messages area -->
+  <div id="chat-messages"></div>
+
+  <!-- Input area -->
+  <div id="chat-input-area">
+    <textarea id="chat-input" placeholder="اكتب رسالة..." rows="1"
+      onkeydown="chatKeydown(event)" oninput="chatAutoResize(this)"></textarea>
+    <button id="chat-send-btn" onclick="chatSend()" title="إرسال">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
      ALPINE.JS APP LOGIC
 ══════════════════════════════════════════════════ -->
 <script>
@@ -1394,6 +1559,297 @@ function app() {
     },
   };
 }
+</script>
+
+<!-- ══════════════════════════════════════════════════
+     CHAT WIDGET LOGIC
+══════════════════════════════════════════════════ -->
+<script>
+(function () {
+  // ── State ───────────────────────────────────────────────────
+  let chatOpen      = false;
+  let lastMsgId     = 0;       // highest id we've seen — used for new-message detection
+  let unreadCount   = 0;
+  let pollTimer     = null;
+  let chatUsername  = '';       // set once Alpine populates sessionUsername
+
+  const POLL_MS     = 3000;    // poll every 3 s
+
+  // ── Helpers ─────────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+
+  function chatGetUsername() {
+    // Pull from Alpine state — available after login
+    if (chatUsername) return chatUsername;
+    try {
+      const alpineEl = document.querySelector('[x-data]');
+      if (alpineEl && Alpine?.evaluate)
+        chatUsername = Alpine.evaluate(alpineEl, 'sessionUsername') || '';
+    } catch (_) {}
+    return chatUsername;
+  }
+
+  function fmtTime(isoStr) {
+    if (!isoStr) return '';
+    const d   = new Date(isoStr);
+    let h     = d.getHours(), m = d.getMinutes();
+    const ampm = h >= 12 ? 'م' : 'ص';
+    h = h % 12 || 12;
+    return `${h}:${String(m).padStart(2,'0')} ${ampm}`;
+  }
+
+  function fmtDateLabel(isoStr) {
+    const d = new Date(isoStr);
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو',
+                    'يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    if (d.toDateString() === today.toDateString())     return 'اليوم';
+    if (d.toDateString() === yesterday.toDateString()) return 'أمس';
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  function isAtBottom(el) {
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  }
+
+  // ── Render a single message bubble ──────────────────────────
+  function buildBubble(msg, myName) {
+    const isMe = msg.sender === myName;
+    const wrap = document.createElement('div');
+    wrap.className = `chat-msg-wrap ${isMe ? 'me' : 'them'}`;
+    wrap.dataset.id = msg.id;
+
+    const sender = document.createElement('div');
+    sender.className = 'chat-sender';
+    sender.textContent = isMe ? 'أنت' : msg.sender;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
+    bubble.textContent = msg.message;
+
+    const time = document.createElement('div');
+    time.className = 'chat-time';
+    time.textContent = fmtTime(msg.created_at);
+
+    wrap.appendChild(sender);
+    wrap.appendChild(bubble);
+    wrap.appendChild(time);
+    return wrap;
+  }
+
+  // ── Full render (initial load) ───────────────────────────────
+  function renderAll(messages) {
+    const container = $('chat-messages');
+    container.innerHTML = '';
+
+    if (!messages.length) {
+      container.innerHTML = `
+        <div class="chat-empty">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.3">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+          </svg>
+          <p>لا توجد رسائل بعد. ابدأ المحادثة!</p>
+        </div>`;
+      return;
+    }
+
+    const myName = chatGetUsername();
+    let lastDateLabel = '';
+
+    messages.forEach(msg => {
+      const label = fmtDateLabel(msg.created_at);
+      if (label !== lastDateLabel) {
+        const div = document.createElement('div');
+        div.className = 'chat-date-divider';
+        div.textContent = label;
+        container.appendChild(div);
+        lastDateLabel = label;
+      }
+      container.appendChild(buildBubble(msg, myName));
+    });
+
+    if (messages.length) lastMsgId = messages[messages.length - 1].id;
+  }
+
+  // ── Append only new messages (poll updates) ─────────────────
+  function appendNew(messages) {
+    const newer = messages.filter(m => m.id > lastMsgId);
+    if (!newer.length) return;
+
+    const container   = $('chat-messages');
+    const myName      = chatGetUsername();
+    const wasAtBottom = isAtBottom(container);
+
+    // Remove empty-state placeholder if present
+    const empty = container.querySelector('.chat-empty');
+    if (empty) container.innerHTML = '';
+
+    let lastDateLabel = '';
+    // Infer last date label from last existing bubble
+    const lastBubble = container.querySelector('.chat-msg-wrap:last-of-type');
+    if (lastBubble) {
+      // not critical — skip duplicate divider detection for simplicity
+    }
+
+    newer.forEach(msg => {
+      const label = fmtDateLabel(msg.created_at);
+      if (label !== lastDateLabel) {
+        // Only add divider if the date actually changed from existing messages
+        const existingDividers = [...container.querySelectorAll('.chat-date-divider')];
+        const alreadyHas = existingDividers.some(d => d.textContent === label);
+        if (!alreadyHas) {
+          const div = document.createElement('div');
+          div.className = 'chat-date-divider';
+          div.textContent = label;
+          container.appendChild(div);
+        }
+        lastDateLabel = label;
+      }
+      container.appendChild(buildBubble(msg, myName));
+    });
+
+    lastMsgId = newer[newer.length - 1].id;
+
+    if (wasAtBottom) container.scrollTop = container.scrollHeight;
+
+    // Notify if chat is closed and message is from someone else
+    const myName2 = chatGetUsername();
+    const foreign = newer.filter(m => m.sender !== myName2);
+    if (foreign.length && !chatOpen) {
+      unreadCount += foreign.length;
+      showBadge();
+      sendDesktopNotification(foreign[foreign.length - 1]);
+    }
+  }
+
+  // ── Badge ────────────────────────────────────────────────────
+  function showBadge() {
+    const badge = $('chat-badge');
+    badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+    badge.style.display = 'flex';
+  }
+
+  function clearBadge() {
+    unreadCount = 0;
+    $('chat-badge').style.display = 'none';
+  }
+
+  // ── Desktop notifications ────────────────────────────────────
+  function requestNotifPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+
+  function sendDesktopNotification(msg) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    if (document.hasFocus() && chatOpen) return;
+    new Notification(`رسالة من ${msg.sender}`, {
+      body: msg.message.length > 80 ? msg.message.slice(0, 80) + '…' : msg.message,
+      icon: '/logoen.png',
+      tag:  'chat-msg',   // collapses multiple notifications into one
+    });
+  }
+
+  // ── Fetch ────────────────────────────────────────────────────
+  async function fetchMessages(isInitial = false) {
+    try {
+      const res = await fetch('/api/chat', { credentials: 'include' });
+      if (!res.ok) return;
+      const msgs = await res.json();
+      if (isInitial) {
+        renderAll(msgs);
+        const container = $('chat-messages');
+        setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+      } else {
+        appendNew(msgs);
+      }
+    } catch (_) { /* network hiccup — silent */ }
+  }
+
+  // ── Polling ──────────────────────────────────────────────────
+  function startPolling() {
+    if (pollTimer) return;
+    pollTimer = setInterval(() => fetchMessages(false), POLL_MS);
+  }
+
+  function stopPolling() {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+
+  // ── Toggle open/close ────────────────────────────────────────
+  window.chatToggle = function () {
+    chatOpen = !chatOpen;
+    const win = $('chat-window');
+    if (chatOpen) {
+      win.classList.add('open');
+      clearBadge();
+      requestNotifPermission();
+      fetchMessages(true);   // fresh full load
+      startPolling();
+      setTimeout(() => {
+        const container = $('chat-messages');
+        container.scrollTop = container.scrollHeight;
+        $('chat-input').focus();
+      }, 80);
+    } else {
+      win.classList.remove('open');
+      stopPolling();
+    }
+  };
+
+  // ── Send ─────────────────────────────────────────────────────
+  window.chatSend = async function () {
+    const input = $('chat-input');
+    const text  = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    chatAutoResize(input);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method:      'POST',
+        headers:     { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body:        JSON.stringify({ message: text }),
+      });
+      if (res.ok) {
+        // Immediately fetch so the sent message appears at once
+        await fetchMessages(false);
+        const container = $('chat-messages');
+        container.scrollTop = container.scrollHeight;
+      }
+    } catch (_) {}
+  };
+
+  // ── Keyboard: Enter sends, Shift+Enter = newline ─────────────
+  window.chatKeydown = function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      chatSend();
+    }
+  };
+
+  // ── Auto-resize textarea ─────────────────────────────────────
+  window.chatAutoResize = function (el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 90) + 'px';
+  };
+
+  // ── Boot: start background polling even when chat is closed
+  //    so the badge lights up without opening the chat ─────────
+  document.addEventListener('DOMContentLoaded', () => {
+    // Wait briefly for Alpine to set sessionUsername, then start polling
+    setTimeout(() => {
+      startPolling();
+    }, 2000);
+  });
+})();
 </script>
 </body>
 </html>
