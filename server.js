@@ -478,6 +478,43 @@ app.delete('/api/invoices/:id', requireManager, async (req, res) => {
   }
 });
 
+// ── GET /api/chat — last 50 messages ─────────────────────────
+app.get('/api/chat', async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('id, sender, message, created_at')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw new Error(error.message);
+    // Return in chronological order (oldest first)
+    res.json((data || []).reverse());
+  } catch (err) {
+    console.error('GET /api/chat:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/chat — send a message ──────────────────────────
+app.post('/api/chat', async (req, res) => {
+  try {
+    const message = (req.body.message || '').trim();
+    if (!message) return res.status(400).json({ error: 'الرسالة فارغة' });
+    if (message.length > 1000) return res.status(400).json({ error: 'الرسالة طويلة جداً' });
+
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert({ sender: req.session.username, message })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    res.status(201).json(data);
+  } catch (err) {
+    console.error('POST /api/chat:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── SPA fallback ──────────────────────────────────────────────
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
